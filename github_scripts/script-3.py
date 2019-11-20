@@ -5,7 +5,7 @@ import requests
 # import github3 as gh
 
 gh = GitHub()
-token = "You token"
+token = "ce6cba0be2bf2b0b25f2a0e0920ac56f09e365d7"
 REPO_QUERY = 'language:java stars:>12000'  # pushed:>2016-12'
 
 
@@ -41,6 +41,8 @@ def scan_dependencies(url, buf):
             else:
                 continue
             deps.append(info)
+    else:
+        print("Could not get pom")
     return(deps)
 
 
@@ -58,7 +60,7 @@ def main():
     repos_deps = {}
     for result in repos:
         foundRepo = result.repository
-        print(foundRepo.releases())
+
         for release in foundRepo.releases():
             print(release.name)
 
@@ -79,12 +81,18 @@ def main():
 
         for m in modules:
             url = "https://raw.githubusercontent.com/" + foundRepo.full_name \
-                + "/master/" + m + "pom.xml"
+                + "/master/" + m + "/pom.xml"
 
-            deps += scan_dependencies(url, "module_pom.xml")
-            modules += get_modules("module_pom.xml")
+            new_deps = scan_dependencies(url, "module_pom.xml")
+            if new_deps == []:
+                continue
+
+            deps += new_deps
+            new_modules = get_modules("module_pom.xml")
+            modules += [m + "/" + new_m for new_m in new_modules]
 
         repos_deps[foundRepo.name] = deps
+
 
     # TODO
     # get the pom.xml and parse it to find the dependecies
