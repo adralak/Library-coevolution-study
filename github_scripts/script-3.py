@@ -5,7 +5,7 @@ import requests
 # import github3 as gh
 
 gh = GitHub()
-token = 'ce6cba0be2bf2b0b25f2a0e0920ac56f09e365d7'
+token = "You token"
 REPO_QUERY = 'language:java stars:>12000'  # pushed:>2016-12'
 
 
