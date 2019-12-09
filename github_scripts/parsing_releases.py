@@ -9,7 +9,7 @@ import csv
 
 gh = GitHub()
 token = ""
-REPO_QUERY = 'language:java stars:>20000'  # pushed:>2016-12'
+REPO_QUERY = 'language:java stars:>40000'  # pushed:>2016-12'
 
 
 def write_to_csv(repos_infos):
