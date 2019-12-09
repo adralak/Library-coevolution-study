@@ -10,6 +10,8 @@ import csv
 gh = GitHub()
 token = ""
 REPO_QUERY = 'language:java stars:>40000'  # pushed:>2016-12'
+STARS_MIN = 40000
+STARS_MAX = 200000
 
 
 def write_to_csv(repos_infos):
@@ -89,6 +91,9 @@ def main():
 
     for result in repos:
         foundRepo = result.repository
+        if foundRepo.stargazers_count < STARS_MIN \
+           or foundRepo.stargazers_count > STARS_MAX:
+            continue
 
         print("Looking for pom in " + foundRepo.full_name)
 
