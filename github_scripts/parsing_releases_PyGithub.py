@@ -8,7 +8,7 @@ token = input("Prompt")
 gh = Github(token)
 REPO_QUERY = 'language:java stars:>40000'  # pushed:>2016-12'
 STARS_MIN = 40000
-STARS_MAX = 200000
+STARS_MAX = 2000000
 max_date = datetime.datetime(year=2018, day=6, month=9)
 
 
