@@ -1,0 +1,3 @@
+* Version intervals
+** build the repos to see which version maven picks ?
+** or create a dummy node pointing to each end ?
