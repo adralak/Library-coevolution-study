@@ -33,6 +33,12 @@ deps = [[] for i in range(n_threads)]
 # Children threads queues
 m_q = [Queue() for i in range(n_threads)]
 
+# Properties of each repo
+props = [{} for i in range(n_threads)]
+
+# For handling problematic repos
+exceptions = []
+
 # Where to write the poms to
 exec_space = "exec_space/"
 
@@ -48,7 +54,7 @@ def write_to_csv(infos, n=0):
 
 
 # Gets the groupId, artifactId and version out of a given pom
-def get_min_info(pom):
+def get_min_info(pom, n=0):
     dom = minidom.parse(pom)
     groupId = dom.getElementsByTagName("groupId")
     artifactId = dom.getElementsByTagName("artifactId")
@@ -58,37 +64,58 @@ def get_min_info(pom):
     return(min_info)
 
 
+# Gets the value of a text node
+def get_value(data, n):
+    if data[0] == '$':
+        return(props[n][data[2:-1]])
+    else:
+        return(data)
+
+
 # Scans a pom for dependencies and modules
-def scan_pom(pom):
+def scan_pom(pom, n=0):
     deps = []
 
     dom = minidom.parse(pom)
     depend = dom.getElementsByTagName("dependency")
     tmp_modules = dom.getElementsByTagName("module")
+    tmp_properties = dom.getElementsByTagName("properties")
     modules = [m.firstChild.data for m in tmp_modules]
+
+    if tmp_properties.length > 0:
+        for node in tmp_properties.item(0).childNodes:
+            if node.hasChildNodes():
+                key = node.nodeName
+                data = node.firstChild.data
+
+                if key in props[n] and data != props[n][key]:
+                    return([-1], [-1])
+                else:
+                    props[n][key] = data
 
     for dep in depend:
         info = []
 
         gpId = dep.getElementsByTagName("groupId")
         if gpId != []:
-            info.append(gpId[0].firstChild.data)
+            info.append(get_value(gpId[0].firstChild.data, n))
         else:
             continue
 
         artId = dep.getElementsByTagName("artifactId")
         if artId != []:
-            info.append(artId[0].firstChild.data)
+            info.append(get_value(artId[0].firstChild.data, n))
         else:
             continue
 
         version = dep.getElementsByTagName("version")
         if version != []:
-            info.append(version[0].firstChild.data)
+            info.append(get_value(version[0].firstChild.data, n))
         else:
             continue
         deps.append(info)
 
+#    print(deps)
     return(deps, modules)
 
 
@@ -105,12 +132,13 @@ def get_pom(url, buf):
 
 
 # Gets the pom of a module and scans in for dependencies and submodules
-def scan_module(url, pom_name, n=0, m=0):
+def scan_module(url, pom_name, n=0, m=0, base_url=""):
     if get_pom(url, exec_space + "module_" + str(m) + pom_name) < 0:
         return()
 
     try:
-        m_deps, m_mods = scan_pom(exec_space + "module_" + str(m) + pom_name)
+        m_deps, m_mods = scan_pom(
+            exec_space + "module_" + str(m) + pom_name, n)
     except:
         print(url)
         with open(exec_space + "module_" + str(m) + pom_name, "r") as f:
@@ -118,6 +146,9 @@ def scan_module(url, pom_name, n=0, m=0):
                 for line in f:
                     g.write(line)
         return()
+
+    if m_deps == [-1]:
+        exceptions.append(base_url)
 
     if m_deps != []:
         deps[n] += m_deps
@@ -128,12 +159,13 @@ def scan_module(url, pom_name, n=0, m=0):
 
 # Class for the children threads
 class Module_scanner(Thread):
-    def __init__(self, queue, n, m):
+    def __init__(self, queue, n, m, base_url):
         Thread.__init__(self)
         self.queue = queue
         self.n = n
         self.m = m
         self.pom_name = "pom" + str(self.n) + ".xml"
+        self.base_url = base_url
 
     def run(self):
         self.pom_name = str(self.ident) + self.pom_name
@@ -141,7 +173,7 @@ class Module_scanner(Thread):
             url = self.queue.get()
             if url is None:
                 break
-            scan_module(url, self.pom_name, self.n, self.m)
+            scan_module(url, self.pom_name, self.n, self.m, self.base_url)
             self.queue.task_done()
 
 
@@ -175,13 +207,18 @@ def scan_repo(foundRepo, n=0):
 
     # Spawn children
     for i in range(n_mod_threads):
-        scanner = Module_scanner(m_q[n], n, i)
+        scanner = Module_scanner(m_q[n], n, i, base_url)
         scanner.daemon = True
         m_scanners[n].append(scanner)
         scanner.start()
 
     # Iterate over releases
     for release in foundRepo.get_tags():
+        if base_url in exceptions:
+            deps[n] = []
+            props[n] = {}
+            break
+
         h = release.commit.sha
         git_tag = foundRepo.get_git_commit(h)
         date = git_tag.committer.date
@@ -195,7 +232,19 @@ def scan_repo(foundRepo, n=0):
         url = base_url + h + "/pom.xml"
         get_pom(url, pom_name)
         min_info = get_min_info(pom_name)
-        r_deps, r_modules = scan_pom(pom_name)
+        r_deps, r_modules = scan_pom(pom_name, n)
+
+        if "project.groupId" not in props:
+            props[n]["project.groupId"] = min_info[0]
+            props[n]["project.artifactId"] = min_info[1]
+            props[n]["project.version"] = min_info[2]
+
+        # If an error occured, skip this repo and write it to a list
+        if r_deps == [-1]:
+            exceptions.append(base_url)
+            deps[n] = []
+            props[n] = {}
+            break
 
         # Give the children work: one url = one pom from a module
         base_url_h = base_url + h + "/"
@@ -204,13 +253,21 @@ def scan_repo(foundRepo, n=0):
 
         # Wait for the children to finish
         m_q[n].join()
+
         print("Done with " + str(h))
 
         # Add the info + dependencies to the output list
         repo_deps.append(min_info + red(deps[n]))
-        # Reset deps to avoid trouble
+        # Reset deps and props to avoid trouble
         deps[n] = []
+        min_info = [props[n]["project.groupId"], props[n]
+                    ["project.artifactId"], props[n]["project.version"]]
+        props[n] = {}
+        props[n]["project.groupId"] = min_info[0]
+        props[n]["project.artifactId"] = min_info[1]
+        props[n]["project.version"] = min_info[2]
 
+    props[n] = {}
     # Stop worker threads
     for i in range(n_mod_threads):
         m_q[n].put(None)
@@ -218,9 +275,8 @@ def scan_repo(foundRepo, n=0):
         t.join()
 
     # Write the data to a csv
-    print(repo_deps)
-    write_to_csv(repo_deps)
-    print(repo_deps)
+    if base_url not in exceptions:
+        write_to_csv(repo_deps)
 
 
 # Mother thread class
@@ -265,6 +321,10 @@ def main():
         q.put(None)
     for t in r_scanners:
         t.join()
+
+    with open(exec_space + "exceptions", "w") as f:
+        for pb in exceptions:
+            f.write(pb)
 
     print("All done !")
 
