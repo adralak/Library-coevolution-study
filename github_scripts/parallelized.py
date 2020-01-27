@@ -185,8 +185,9 @@ def red(s):
 # Scan a whole repo
 def scan_repo(foundRepo, n=0):
     # First, check if it is the star range we're interested in
-    if foundRepo.stargazers_count < STARS_MIN \
-       or foundRepo.stargazers_count > STARS_MAX:
+    star_count = foundRepo.stargazers_count
+    if star_count < STARS_MIN \
+       or star_count > STARS_MAX:
         return()
 
     print(str(n) + ": Looking for pom in " + foundRepo.full_name)
@@ -257,7 +258,7 @@ def scan_repo(foundRepo, n=0):
         print("Done with " + str(h))
 
         # Add the info + dependencies to the output list
-        repo_deps.append(min_info + red(deps[n]))
+        repo_deps.append([star_count] + min_info + red(deps[n]))
         # Reset deps and props to avoid trouble
         deps[n] = []
         min_info = [props[n]["project.groupId"], props[n]
