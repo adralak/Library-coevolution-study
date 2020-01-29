@@ -3,7 +3,7 @@ from xml.dom import minidom
 import requests
 import csv
 import datetime
-from threading import Thread
+from threading import Thread, Lock
 from queue import Queue
 from time import sleep
 
@@ -41,6 +41,12 @@ exceptions = []
 
 # Where to write the poms to
 exec_space = "exec_space/"
+
+# Handle rate limit
+rl = gh.get_rate_limit()
+rate_limit = rl.core.remaining - 100
+mutex = Lock()
+time_buffer = 5
 
 
 # Writes the infos stores in deps[i] to a csv
@@ -182,29 +188,69 @@ def red(s):
     return [x for i in range(len(s)) for x in s[i]]
 
 
+def wait_till_reset():
+    global rate_limit
+    now = datetime.now(datetime.timezone.utc)
+    rl = gh.get_rate_limit()
+    reset = rl.core.reset
+    wait = reset - now
+    sleep(wait.total_seconds() + time_buffer)
+    rl = gh.get_rate_limit()
+    rate_limit = rl.core.remaining - 100
+
 # Scan a whole repo
+
+
 def scan_repo(foundRepo, n=0):
-    # First, check if it is the star range we're interested in
-    star_count = foundRepo.stargazers_count
-    if star_count < STARS_MIN \
-       or star_count > STARS_MAX:
-        return()
+    global rate_limit
 
-    print(str(n) + ": Looking for pom in " + foundRepo.full_name)
+    mutex.acquire()
 
-    url = 'https://raw.githubusercontent.com/' + \
-        foundRepo.full_name + '/master/pom.xml'
+    if rate_limit <= 0:
+        wait_till_reset()
+
+    full_name = foundRepo.full_name
+    rate_limit -= 1
+
+    mutex.release()
+
+    print(str(n) + ": Looking for pom in " + full_name)
+
     pom_name = "pom" + str(n) + ".xml"
 
     # Check if it has a pom
+    url = 'https://raw.githubusercontent.com/' + \
+        full_name + '/master/pom.xml'
+
     if get_pom(url, exec_space + pom_name) < 0:
         return()
 
-    print('Inspecting', foundRepo.name)
+    # Handle rate limit
+    mutex.acquire()
+    if rate_limit <= 0:
+        wait_till_reset()
+
+    tags = foundRepo.get_tags()
+    num_queries = tags.total_count + 1
+
+    if num_queries >= 5000:
+        exceptions.append(url)
+        return()
+
+    rate_limit -= num_queries
+
+    if rate_limit <= 0:
+        wait_till_reset()
+
+    mutex.release()
+
+    print('Inspecting', full_name)
 
     base_url = 'https://raw.githubusercontent.com/' + \
-        foundRepo.full_name + "/"
+        full_name + "/"
     repo_deps = []
+    base_dict = {}
+    star_count = foundRepo.stargazers_count
 
     # Spawn children
     for i in range(n_mod_threads):
@@ -214,7 +260,7 @@ def scan_repo(foundRepo, n=0):
         scanner.start()
 
     # Iterate over releases
-    for release in foundRepo.get_tags():
+    for release in tags:
         if base_url in exceptions:
             deps[n] = []
             props[n] = {}
@@ -235,10 +281,11 @@ def scan_repo(foundRepo, n=0):
         min_info = get_min_info(pom_name)
         r_deps, r_modules = scan_pom(pom_name, n)
 
-        if "project.groupId" not in props:
-            props[n]["project.groupId"] = min_info[0]
-            props[n]["project.artifactId"] = min_info[1]
-            props[n]["project.version"] = min_info[2]
+        if "project.groupId" not in base_dict:
+            base_dict["project.groupId"] = min_info[0]
+            base_dict["project.artifactId"] = min_info[1]
+            base_dict["project.version"] = min_info[2]
+            props[n] = base_dict
 
         # If an error occured, skip this repo and write it to a list
         if r_deps == [-1]:
@@ -263,10 +310,7 @@ def scan_repo(foundRepo, n=0):
         deps[n] = []
         min_info = [props[n]["project.groupId"], props[n]
                     ["project.artifactId"], props[n]["project.version"]]
-        props[n] = {}
-        props[n]["project.groupId"] = min_info[0]
-        props[n]["project.artifactId"] = min_info[1]
-        props[n]["project.version"] = min_info[2]
+        props[n] = base_dict
 
     props[n] = {}
     # Stop worker threads
@@ -281,8 +325,6 @@ def scan_repo(foundRepo, n=0):
 
 
 # Mother thread class
-
-
 class Repo_scanner(Thread):
     def __init__(self, queue, n):
         Thread.__init__(self)
@@ -290,6 +332,7 @@ class Repo_scanner(Thread):
         self.n = n
 
     def run(self):
+        sleep(60)
         while True:
             repo = self.queue.get()
             if repo is None:
@@ -298,9 +341,34 @@ class Repo_scanner(Thread):
             self.queue.task_done()
 
 
+def get_query(query):
+    rate_limit = gh.get_rate_limit()
+    if rate_limit.search.remaining == 0:
+        sleep(60)
+
+    return(gh.search_repositories(query=query))
+
+
+class Job_giver(Thread):
+    def __init__(self, queue, jobs):
+        Thread.__init__(self)
+        self.queue = queue
+        self.jobs = jobs
+
+    def run(self):
+        while True:
+            query = self.jobs.get()
+            if query is None:
+                break
+            repos = get_query(query)
+            for r in repos:
+                self.queue.put(r)
+            print("Done with " + query)
+            self.jobs.task_done()
+
+
 def main():
-    # Get the repos filtered somewhat
-    repos = gh.search_repositories(query=REPO_QUERY)
+    jobs = Queue()
     q = Queue()
 
     # Spawn threads
@@ -310,11 +378,17 @@ def main():
         r_scanners.append(scanner)
         scanner.start()
 
+    job_giver = Job_giver(q, jobs)
+    job_giver.daemon = True
+    job_giver.start()
+
     # Give the threads work to do
-    for foundRepo in repos:
-        q.put(foundRepo)
+    with open("intervals.txt", "r") as f:
+        for line in f:
+            jobs.put(line)
 
     # Wait for the work to be done
+    jobs.join()
     q.join()
 
     # Stop worker threads
