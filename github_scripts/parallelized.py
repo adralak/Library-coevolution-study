@@ -10,7 +10,7 @@ from time import sleep
 
 # Get token from user and log in
 token = input("Prompt")
-gh = Github(token)
+gh = Github(token, per_page=1000)
 
 # These variables help filter which repos are seen
 REPO_QUERY = 'language:java stars:>40000'  # pushed:>2016-12'
@@ -155,6 +155,7 @@ def scan_module(url, pom_name, n=0, m=0, base_url=""):
 
     if m_deps == [-1]:
         exceptions.append(base_url)
+        return()
 
     if m_deps != []:
         deps[n] += m_deps
@@ -231,7 +232,7 @@ def scan_repo(foundRepo, n=0):
         wait_till_reset()
 
     tags = foundRepo.get_tags()
-    num_queries = tags.total_count + 1
+    num_queries = tags.totalCount + 1
 
     if num_queries >= 5000:
         exceptions.append(url)
@@ -269,7 +270,6 @@ def scan_repo(foundRepo, n=0):
         h = release.commit.sha
         git_tag = foundRepo.get_git_commit(h)
         date = git_tag.committer.date
-        print(date)
 
         # If it was released after the MDG snapshot, it is ignored
         if date > max_date:
@@ -285,7 +285,8 @@ def scan_repo(foundRepo, n=0):
             base_dict["project.groupId"] = min_info[0]
             base_dict["project.artifactId"] = min_info[1]
             base_dict["project.version"] = min_info[2]
-            props[n] = base_dict
+            for key in base_dict:
+                props[n][key] = base_dict[key]
 
         # If an error occured, skip this repo and write it to a list
         if r_deps == [-1]:
@@ -310,7 +311,8 @@ def scan_repo(foundRepo, n=0):
         deps[n] = []
         min_info = [props[n]["project.groupId"], props[n]
                     ["project.artifactId"], props[n]["project.version"]]
-        props[n] = base_dict
+        for key in base_dict:
+            props[n][key] = base_dict[key]
 
     props[n] = {}
     # Stop worker threads
@@ -397,6 +399,9 @@ def main():
     for t in r_scanners:
         t.join()
 
+    jobs.put(None)
+    job_giver.join()
+
     with open(exec_space + "exceptions", "w") as f:
         for pb in exceptions:
             f.write(pb)
@@ -404,5 +409,4 @@ def main():
     print("All done !")
 
 
-# a, b = scan_pom("../pb_pom.xml")
 main()
