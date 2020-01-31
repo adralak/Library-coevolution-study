@@ -19,9 +19,9 @@ STARS_MAX = 2000000
 max_date = datetime.datetime(year=2018, day=6, month=9)
 
 # Number of parent threads working on repos
-n_threads = 10
+n_threads = 1
 # Number of children threads working on modules
-n_mod_threads = 15
+n_mod_threads = 1
 
 # Keep track of the threads
 r_scanners = []
@@ -73,7 +73,11 @@ def get_min_info(pom, n=0):
 # Gets the value of a text node
 def get_value(data, n):
     if data[0] == '$':
-        return(props[n][data[2:-1]])
+        if data[2:-1] in props[n]:
+            return(props[n][data[2:-1]])
+        else:
+            print("Missing: " + data[2:-1])
+            return([-1])
     else:
         return(data)
 
@@ -104,19 +108,28 @@ def scan_pom(pom, n=0):
 
         gpId = dep.getElementsByTagName("groupId")
         if gpId != []:
-            info.append(get_value(gpId[0].firstChild.data, n))
+            v = get_value(gpId[0].firstChild.data, n)
+            if v == [-1]:
+                return([-2], [-2])
+            info.append(v)
         else:
             continue
 
         artId = dep.getElementsByTagName("artifactId")
         if artId != []:
-            info.append(get_value(artId[0].firstChild.data, n))
+            v = get_value(artId[0].firstChild.data, n)
+            if v == [-1]:
+                return([-2], [-2])
+            info.append(v)
         else:
             continue
 
         version = dep.getElementsByTagName("version")
         if version != []:
-            info.append(get_value(version[0].firstChild.data, n))
+            v = get_value(version[0].firstChild.data, n)
+            if v == [-1]:
+                return([-2], [-2])
+            info.append(v)
         else:
             continue
         deps.append(info)
@@ -154,7 +167,11 @@ def scan_module(url, pom_name, n=0, m=0, base_url=""):
         return()
 
     if m_deps == [-1]:
-        exceptions.append(base_url)
+        exceptions.append((base_url, "rewrite of property"))
+        return()
+    elif m_deps == [-2]:
+        exceptions.append((base_url, "missing key"))
+        print(url)
         return()
 
     if m_deps != []:
@@ -191,11 +208,13 @@ def red(s):
 
 def wait_till_reset():
     global rate_limit
-    now = datetime.now(datetime.timezone.utc)
+    now = datetime.datetitme(year=1, month=1, day=1).now(datetime.timezone.utc)
     rl = gh.get_rate_limit()
     reset = rl.core.reset
     wait = reset - now
+    print("Going to sleep till API reset")
     sleep(wait.total_seconds() + time_buffer)
+    print("API has reset")
     rl = gh.get_rate_limit()
     rate_limit = rl.core.remaining - 100
 
@@ -204,6 +223,7 @@ def wait_till_reset():
 
 def scan_repo(foundRepo, n=0):
     global rate_limit
+    global props
 
     mutex.acquire()
 
@@ -235,7 +255,7 @@ def scan_repo(foundRepo, n=0):
     num_queries = tags.totalCount + 1
 
     if num_queries >= 5000:
-        exceptions.append(url)
+        exceptions.append((url, "Too many API requests"))
         return()
 
     rate_limit -= num_queries
@@ -250,7 +270,6 @@ def scan_repo(foundRepo, n=0):
     base_url = 'https://raw.githubusercontent.com/' + \
         full_name + "/"
     repo_deps = []
-    base_dict = {}
     star_count = foundRepo.stargazers_count
 
     # Spawn children
@@ -262,7 +281,7 @@ def scan_repo(foundRepo, n=0):
 
     # Iterate over releases
     for release in tags:
-        if base_url in exceptions:
+        if base_url in [x[0] for x in exceptions]:
             deps[n] = []
             props[n] = {}
             break
@@ -277,22 +296,27 @@ def scan_repo(foundRepo, n=0):
 
         # Get the infos out of the master pom
         url = base_url + h + "/pom.xml"
-        get_pom(url, pom_name)
+        get_pom(url, exec_space + pom_name)
         min_info = get_min_info(pom_name)
-        r_deps, r_modules = scan_pom(pom_name, n)
 
-        if "project.groupId" not in base_dict:
-            base_dict["project.groupId"] = min_info[0]
-            base_dict["project.artifactId"] = min_info[1]
-            base_dict["project.version"] = min_info[2]
-            for key in base_dict:
-                props[n][key] = base_dict[key]
+        props[n]["project.groupId"] = min_info[0]
+        props[n]["project.artifactId"] = min_info[1]
+        props[n]["project.version"] = min_info[2]
+
+        r_deps, r_modules = scan_pom(pom_name, n)
 
         # If an error occured, skip this repo and write it to a list
         if r_deps == [-1]:
-            exceptions.append(base_url)
+            exceptions.append((base_url, "rewrite of property"))
             deps[n] = []
             props[n] = {}
+            print(url)
+            break
+        elif r_deps == [-2]:
+            exceptions.append((base_url, "missing key"))
+            deps[n] = []
+            props[n] = {}
+            print(url)
             break
 
         # Give the children work: one url = one pom from a module
@@ -311,8 +335,6 @@ def scan_repo(foundRepo, n=0):
         deps[n] = []
         min_info = [props[n]["project.groupId"], props[n]
                     ["project.artifactId"], props[n]["project.version"]]
-        for key in base_dict:
-            props[n][key] = base_dict[key]
 
     props[n] = {}
     # Stop worker threads
@@ -322,7 +344,7 @@ def scan_repo(foundRepo, n=0):
         t.join()
 
     # Write the data to a csv
-    if base_url not in exceptions:
+    if base_url not in [x[0] for x in exceptions]:
         write_to_csv(repo_deps)
 
 
@@ -334,8 +356,9 @@ class Repo_scanner(Thread):
         self.n = n
 
     def run(self):
-        sleep(60)
+        sleep(2)
         while True:
+            print("New repo")
             repo = self.queue.get()
             if repo is None:
                 break
@@ -365,7 +388,7 @@ class Job_giver(Thread):
             repos = get_query(query)
             for r in repos:
                 self.queue.put(r)
-            print("Done with " + query)
+            print("Done adding " + query)
             self.jobs.task_done()
 
 
@@ -403,8 +426,8 @@ def main():
     job_giver.join()
 
     with open(exec_space + "exceptions", "w") as f:
-        for pb in exceptions:
-            f.write(pb)
+        for pb, msg in exceptions:
+            f.write(pb + " : " + msg)
 
     print("All done !")
 
