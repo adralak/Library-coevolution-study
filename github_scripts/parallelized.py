@@ -286,6 +286,8 @@ def scan_repo(foundRepo, n=0):
             props[n] = {}
             break
 
+        print("Checkpoint 1")
+
         h = release.commit.sha
         git_tag = foundRepo.get_git_commit(h)
         date = git_tag.committer.date
@@ -294,9 +296,11 @@ def scan_repo(foundRepo, n=0):
         if date > max_date:
             continue
 
+        print("Checkpoint 2")
         # Get the infos out of the master pom
         url = base_url + h + "/pom.xml"
-        get_pom(url, exec_space + pom_name)
+        if get_pom(url, exec_space + pom_name) < 0:
+            continue
         min_info = get_min_info(pom_name)
 
         props[n]["project.groupId"] = min_info[0]
@@ -319,13 +323,16 @@ def scan_repo(foundRepo, n=0):
             print(url)
             break
 
+        print("Checkpoint 3")
         # Give the children work: one url = one pom from a module
         base_url_h = base_url + h + "/"
-        for m in r_modules:
-            m_q[n].put(base_url_h + m + "/pom.xml")
 
-        # Wait for the children to finish
-        m_q[n].join()
+        if r_modules != []:
+            for m in r_modules:
+                m_q[n].put(base_url_h + m + "/pom.xml")
+
+                # Wait for the children to finish
+                m_q[n].join()
 
         print("Done with " + str(h))
 
