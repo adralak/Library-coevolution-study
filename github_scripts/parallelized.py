@@ -103,6 +103,9 @@ def scan_pom(pom, n=0):
                 else:
                     props[n][key] = data
 
+    if depend.length == 0:
+        return([], modules)
+
     for dep in depend:
         info = []
 
@@ -152,6 +155,8 @@ def get_pom(url, buf):
 
 # Gets the pom of a module and scans in for dependencies and submodules
 def scan_module(url, pom_name, n=0, m=0, base_url=""):
+    print("In scan_module")
+    print(url)
     if get_pom(url, exec_space + "module_" + str(m) + pom_name) < 0:
         return()
 
@@ -165,6 +170,8 @@ def scan_module(url, pom_name, n=0, m=0, base_url=""):
                 for line in f:
                     g.write(line)
         return()
+
+    print("Module Checkpoint 1")
 
     if m_deps == [-1]:
         exceptions.append((base_url, "rewrite of property"))
@@ -314,13 +321,13 @@ def scan_repo(foundRepo, n=0):
             exceptions.append((base_url, "rewrite of property"))
             deps[n] = []
             props[n] = {}
-            print(url)
+            print(exceptions[-1][1] + ": " + url)
             break
         elif r_deps == [-2]:
             exceptions.append((base_url, "missing key"))
             deps[n] = []
             props[n] = {}
-            print(url)
+            print(exceptions[-1][1] + ": " + url)
             break
 
         print("Checkpoint 3")
@@ -331,8 +338,8 @@ def scan_repo(foundRepo, n=0):
             for m in r_modules:
                 m_q[n].put(base_url_h + m + "/pom.xml")
 
-                # Wait for the children to finish
-                m_q[n].join()
+            # Wait for the children to finish
+            m_q[n].join()
 
         print("Done with " + str(h))
 
