@@ -301,13 +301,13 @@ def scan_repo(foundRepo, n=0):
         url = base_url + h + "/pom.xml"
         if get_pom(url, exec_space + pom_name) < 0:
             continue
-        min_info = get_min_info(pom_name)
+        min_info = get_min_info(exec_space + pom_name)
 
         props[n]["project.groupId"] = min_info[0]
         props[n]["project.artifactId"] = min_info[1]
         props[n]["project.version"] = min_info[2]
 
-        r_deps, r_modules = scan_pom(pom_name, n)
+        r_deps, r_modules = scan_pom(exec_space + pom_name, n)
 
         # If an error occured, skip this repo and write it to a list
         if r_deps == [-1]:
