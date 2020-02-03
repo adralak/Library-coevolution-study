@@ -19,7 +19,7 @@ STARS_MAX = 2000000
 max_date = datetime.datetime(year=2018, day=6, month=9)
 
 # Number of parent threads working on repos
-n_threads = 1
+n_threads = 3
 # Number of children threads working on modules
 n_mod_threads = 15
 
@@ -50,6 +50,7 @@ def write_to_csv(infos, n=0):
 
 
 # Gets the groupId, artifactId and version out of a given pom
+# TODO
 def get_min_info(pom, n=0):
     dom = minidom.parse(pom)
     groupId = dom.getElementsByTagName("groupId")
@@ -146,7 +147,6 @@ def get_pom(url, buf):
 # Gets the pom of a module and scans in for dependencies and submodules
 def scan_module(url, pom_name, n=0, m=0, base_url="", props={}):
     print("In scan_module")
-    print(url)
     if get_pom(url, exec_space + "module_" + str(m) + pom_name) < 0:
         return()
 
@@ -195,8 +195,14 @@ class Module_scanner(Thread):
 
             if m_deps == [-1]:
                 exceptions.append((self.base_url, "rewrite of property"))
+                print("rewrite of property")
+                self.queue.task_done()
+                continue
             elif m_deps == [-2]:
                 exceptions.append((self.base_url, "missing key"))
+                print("missing key")
+                self.queue.task_done()
+                continue
 
             if m_deps != []:
                 deps[self.n] += m_deps
