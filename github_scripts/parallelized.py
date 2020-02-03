@@ -88,7 +88,7 @@ def scan_pom(pom, n=0, props={}):
                 data = node.firstChild.data
 
                 if key in props and data != props[key]:
-                    return([-1], [-1])
+                    return([-1], [key])
                 else:
                     props[key] = data
 
@@ -143,7 +143,7 @@ def get_pom(url, buf):
 
 
 # Gets the pom of a module and scans in for dependencies and submodules
-def scan_module(url, pom_name, n=0, m=0, base_url="", props={}):
+def scan_module(url, pom_name, queue, n=0, m=0, base_url="", props={}):
     #    print("In scan_module")
     if get_pom(url, exec_space + "module_" + str(m) + pom_name) < 0:
         return()
@@ -153,13 +153,22 @@ def scan_module(url, pom_name, n=0, m=0, base_url="", props={}):
             exec_space + "module_" + str(m) + pom_name, n, props)
     except:
         #        print(url)
-        with open(exec_space + "module_" + str(m) + pom_name, "r") as f:
-            with open("../pb_pom" + str(n) + str(m) + ".xml", "w") as g:
-                for line in f:
-                    g.write(line)
-        return((None, None))
+        exceptions.write(url + ": exception raised in scan_pom")
+        return()
 
-    return((m_deps, m_mods))
+    if m_deps == [-1]:
+        exceptions.write(url + ": rewrite of property " + m_mods[0])
+        is_exception[n] = True
+    elif m_deps == [-2]:
+        exceptions.write(url + ": missing key")
+        is_exception[n] = True
+
+    if m_deps != []:
+        deps[n] += m_deps
+
+    for mod in m_mods:
+        queue.put(url + mod + "/")
+
   #  print("Out of scan_module")
 
 
@@ -182,30 +191,8 @@ class Module_scanner(Thread):
             if url is None:
                 break
 
-            m_deps, m_mods = scan_module(
-                url, self.pom_name, self.n, self.m, self.base_url, self.props)
-
-            if m_deps is None:
-                exceptions.write(url + ": Exception raised")
-                is_exception[self.n] = True
-                break
-
-            if m_deps == [-1]:
-                exceptions.write(url + ": rewrite of property")
-                is_exception[self.n] = True
-                self.queue.task_done()
-                continue
-            elif m_deps == [-2]:
-                exceptions.write(url + ": missing key")
-                is_exception[self.n] = True
-                self.queue.task_done()
-                continue
-
-            if m_deps != []:
-                deps[self.n] += m_deps
-
-            for mod in m_mods:
-                self.queue.put(url + mod + "/")
+            scan_module(url, self.pom_name, self.queue, self.n,
+                        self.m, self.base_url, self.props)
 
             self.queue.task_done()
 
@@ -438,10 +425,6 @@ def main():
 
     jobs.put(None)
     job_giver.join()
-
-    with open(exec_space + "exceptions", "w") as f:
-        for pb, msg in exceptions:
-            f.write(pb + " : " + msg)
 
     print("All done !")
 
