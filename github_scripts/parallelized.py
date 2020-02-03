@@ -42,12 +42,9 @@ time_buffer = 5
 
 # Writes the infos stores in deps[i] to a csv
 def write_to_csv(infos, n=0):
-    print("Writing...")
-    print(infos)
     with open("data" + str(n) + ".csv", 'a', newline='') as f:
         writer = csv.writer(f)
         writer.writerows(infos)
-    print("Done !")
 
 
 # Gets the groupId, artifactId and version out of a given pom
@@ -68,7 +65,7 @@ def get_value(data, props):
         if data[2:-1] in props:
             return(props[data[2:-1]])
         else:
-            print("Missing: " + data[2:-1])
+            #            print("Missing: " + data[2:-1])
             return([-1])
     else:
         return(data)
@@ -147,7 +144,7 @@ def get_pom(url, buf):
 
 # Gets the pom of a module and scans in for dependencies and submodules
 def scan_module(url, pom_name, n=0, m=0, base_url="", props={}):
-    print("In scan_module")
+    #    print("In scan_module")
     if get_pom(url, exec_space + "module_" + str(m) + pom_name) < 0:
         return()
 
@@ -155,7 +152,7 @@ def scan_module(url, pom_name, n=0, m=0, base_url="", props={}):
         m_deps, m_mods = scan_pom(
             exec_space + "module_" + str(m) + pom_name, n, props)
     except:
-        print(url)
+        #        print(url)
         with open(exec_space + "module_" + str(m) + pom_name, "r") as f:
             with open("../pb_pom" + str(n) + str(m) + ".xml", "w") as g:
                 for line in f:
@@ -163,7 +160,7 @@ def scan_module(url, pom_name, n=0, m=0, base_url="", props={}):
         return((None, None))
 
     return((m_deps, m_mods))
-    print("Out of scan_module")
+  #  print("Out of scan_module")
 
 
 # Class for the children threads
@@ -180,7 +177,7 @@ class Module_scanner(Thread):
     def run(self):
         self.pom_name = str(self.ident) + self.pom_name
         while True:
-            print(self.queue.empty())
+            #            print(self.queue.empty())
             url = self.queue.get()
             if url is None:
                 break
@@ -247,7 +244,7 @@ def scan_repo(foundRepo, n=0):
 
     mutex.release()
 
-    print(str(n) + ": Looking for pom in " + full_name)
+#    print(str(n) + ": Looking for pom in " + full_name)
 
     pom_name = "pom" + str(n) + ".xml"
 
@@ -278,7 +275,7 @@ def scan_repo(foundRepo, n=0):
 
     mutex.release()
 
-    print('Inspecting', full_name)
+#    print('Inspecting', full_name)
 
     base_url = 'https://raw.githubusercontent.com/' + \
         full_name + "/"
@@ -336,14 +333,14 @@ def scan_repo(foundRepo, n=0):
         base_url_h = base_url + h + "/"
 
         if r_modules != []:
-            print(r_modules)
+            #            print(r_modules)
             for m in r_modules:
                 m_q.put(base_url_h + m + "/")
 
             # Wait for the children to finish
             m_q.join()
 
-        print("Done with " + str(h))
+#        print("Done with " + str(h))
 
         # Add the info + dependencies to the output list
         repo_deps.append([star_count] + min_info + red(deps[n]))
@@ -374,7 +371,7 @@ class Repo_scanner(Thread):
     def run(self):
         sleep(2)
         while True:
-            print("New repo")
+            #            print("New repo")
             repo = self.queue.get()
             if repo is None:
                 break
@@ -404,7 +401,7 @@ class Job_giver(Thread):
             repos = get_query(query)
             for r in repos:
                 self.queue.put(r)
-            print("Done adding " + query)
+#            print("Done adding " + query)
             self.jobs.task_done()
 
 
