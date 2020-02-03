@@ -27,7 +27,8 @@ n_mod_threads = 15
 deps = [[] for i in range(n_threads)]
 
 # For handling problematic repos
-exceptions = []
+exceptions = open("exceptions.txt", "w")
+is_exception = [False for i in range(n_threads)]
 
 # Where to write the poms to
 exec_space = "exec_space/"
@@ -184,23 +185,22 @@ class Module_scanner(Thread):
             if url is None:
                 break
 
-            print("Got " + url)
-
             m_deps, m_mods = scan_module(
                 url, self.pom_name, self.n, self.m, self.base_url, self.props)
 
             if m_deps is None:
-                print("Exception raised")
+                exceptions.write(url + ": Exception raised")
+                is_exception[self.n] = True
                 break
 
             if m_deps == [-1]:
-                exceptions.append((self.base_url, "rewrite of property"))
-                print("rewrite of property")
+                exceptions.write(url + ": rewrite of property")
+                is_exception[self.n] = True
                 self.queue.task_done()
                 continue
             elif m_deps == [-2]:
-                exceptions.append((self.base_url, "missing key"))
-                print("missing key")
+                exceptions.write(url + ": missing key")
+                is_exception[self.n] = True
                 self.queue.task_done()
                 continue
 
@@ -211,7 +211,6 @@ class Module_scanner(Thread):
                 self.queue.put(url + mod + "/")
 
             self.queue.task_done()
-            print("Module task done")
 
 
 # Reduces a list of list to a list
@@ -268,7 +267,8 @@ def scan_repo(foundRepo, n=0):
     num_queries = tags.totalCount + 1
 
     if num_queries >= 5000:
-        exceptions.append((url, "Too many API requests"))
+        exceptions.write(url + ": Too many API requests")
+        is_exception[n] = True
         return()
 
     rate_limit -= num_queries
@@ -297,7 +297,7 @@ def scan_repo(foundRepo, n=0):
 
     # Iterate over releases
     for release in tags:
-        if base_url in [x[0] for x in exceptions]:
+        if is_exception[n]:
             break
 
         h = release.commit.sha
@@ -322,12 +322,12 @@ def scan_repo(foundRepo, n=0):
 
         # If an error occured, skip this repo and write it to a list
         if r_deps == [-1]:
-            exceptions.append((base_url, "rewrite of property"))
-            print(exceptions[-1][1] + ": " + url)
+            exceptions.write(url + ": rewrite of property")
+            is_exception[n] = True
             break
         elif r_deps == [-2]:
-            exceptions.append((base_url, "missing key"))
-            print(exceptions[-1][1] + ": " + url)
+            exceptions.write(url + ": missing key")
+            is_exception[n] = True
             break
 
         deps[n] += r_deps
@@ -358,8 +358,10 @@ def scan_repo(foundRepo, n=0):
         t.join()
 
     # Write the data to a csv
-    if base_url not in [x[0] for x in exceptions]:
+    if not is_exception[n]:
         write_to_csv(repo_deps)
+
+    is_exception[n] = False
 
 
 # Mother thread class
