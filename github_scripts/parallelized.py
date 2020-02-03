@@ -21,20 +21,10 @@ max_date = datetime.datetime(year=2018, day=6, month=9)
 # Number of parent threads working on repos
 n_threads = 1
 # Number of children threads working on modules
-n_mod_threads = 1
-
-# Keep track of the threads
-r_scanners = []
-m_scanners = [[] for i in range(n_threads)]
+n_mod_threads = 15
 
 # Output
 deps = [[] for i in range(n_threads)]
-
-# Children threads queues
-m_q = [Queue() for i in range(n_threads)]
-
-# Properties of each repo
-props = [{} for i in range(n_threads)]
 
 # For handling problematic repos
 exceptions = []
@@ -71,10 +61,10 @@ def get_min_info(pom, n=0):
 
 
 # Gets the value of a text node
-def get_value(data, n):
+def get_value(data, props):
     if data[0] == '$':
-        if data[2:-1] in props[n]:
-            return(props[n][data[2:-1]])
+        if data[2:-1] in props:
+            return(props[data[2:-1]])
         else:
             print("Missing: " + data[2:-1])
             return([-1])
@@ -83,7 +73,7 @@ def get_value(data, n):
 
 
 # Scans a pom for dependencies and modules
-def scan_pom(pom, n=0):
+def scan_pom(pom, n=0, props={}):
     deps = []
 
     dom = minidom.parse(pom)
@@ -98,10 +88,10 @@ def scan_pom(pom, n=0):
                 key = node.nodeName
                 data = node.firstChild.data
 
-                if key in props[n] and data != props[n][key]:
+                if key in props and data != props[key]:
                     return([-1], [-1])
                 else:
-                    props[n][key] = data
+                    props[key] = data
 
     if depend.length == 0:
         return([], modules)
@@ -111,7 +101,7 @@ def scan_pom(pom, n=0):
 
         gpId = dep.getElementsByTagName("groupId")
         if gpId != []:
-            v = get_value(gpId[0].firstChild.data, n)
+            v = get_value(gpId[0].firstChild.data, props)
             if v == [-1]:
                 return([-2], [-2])
             info.append(v)
@@ -120,7 +110,7 @@ def scan_pom(pom, n=0):
 
         artId = dep.getElementsByTagName("artifactId")
         if artId != []:
-            v = get_value(artId[0].firstChild.data, n)
+            v = get_value(artId[0].firstChild.data, props)
             if v == [-1]:
                 return([-2], [-2])
             info.append(v)
@@ -129,7 +119,7 @@ def scan_pom(pom, n=0):
 
         version = dep.getElementsByTagName("version")
         if version != []:
-            v = get_value(version[0].firstChild.data, n)
+            v = get_value(version[0].firstChild.data, props)
             if v == [-1]:
                 return([-2], [-2])
             info.append(v)
@@ -143,7 +133,7 @@ def scan_pom(pom, n=0):
 
 # Downloads a pom and writes its contents to buf
 def get_pom(url, buf):
-    response = requests.get(url)
+    response = requests.get(url + "pom.xml")
 
     if response.ok:
         with open(buf, "w") as f:
@@ -154,7 +144,7 @@ def get_pom(url, buf):
 
 
 # Gets the pom of a module and scans in for dependencies and submodules
-def scan_module(url, pom_name, n=0, m=0, base_url=""):
+def scan_module(url, pom_name, n=0, m=0, base_url="", props={}):
     print("In scan_module")
     print(url)
     if get_pom(url, exec_space + "module_" + str(m) + pom_name) < 0:
@@ -162,50 +152,60 @@ def scan_module(url, pom_name, n=0, m=0, base_url=""):
 
     try:
         m_deps, m_mods = scan_pom(
-            exec_space + "module_" + str(m) + pom_name, n)
+            exec_space + "module_" + str(m) + pom_name, n, props)
     except:
         print(url)
         with open(exec_space + "module_" + str(m) + pom_name, "r") as f:
             with open("../pb_pom" + str(n) + str(m) + ".xml", "w") as g:
                 for line in f:
                     g.write(line)
-        return()
+        return((None, None))
 
-    print("Module Checkpoint 1")
-
-    if m_deps == [-1]:
-        exceptions.append((base_url, "rewrite of property"))
-        return()
-    elif m_deps == [-2]:
-        exceptions.append((base_url, "missing key"))
-        print(url)
-        return()
-
-    if m_deps != []:
-        deps[n] += m_deps
-
-        for mod in m_mods:
-            m_q[n].put(url + "/" + mod)
+    return((m_deps, m_mods))
+    print("Out of scan_module")
 
 
 # Class for the children threads
 class Module_scanner(Thread):
-    def __init__(self, queue, n, m, base_url):
+    def __init__(self, queue, n, m, base_url, props):
         Thread.__init__(self)
         self.queue = queue
         self.n = n
         self.m = m
         self.pom_name = "pom" + str(self.n) + ".xml"
         self.base_url = base_url
+        self.props = props
 
     def run(self):
         self.pom_name = str(self.ident) + self.pom_name
         while True:
+            print(self.queue.empty())
             url = self.queue.get()
             if url is None:
                 break
-            scan_module(url, self.pom_name, self.n, self.m, self.base_url)
+
+            print("Got " + url)
+
+            m_deps, m_mods = scan_module(
+                url, self.pom_name, self.n, self.m, self.base_url, self.props)
+
+            if m_deps is None:
+                print("Exception raised")
+                break
+
+            if m_deps == [-1]:
+                exceptions.append((self.base_url, "rewrite of property"))
+            elif m_deps == [-2]:
+                exceptions.append((self.base_url, "missing key"))
+
+            if m_deps != []:
+                deps[self.n] += m_deps
+
+            for mod in m_mods:
+                self.queue.put(url + mod + "/")
+
             self.queue.task_done()
+            print("Module task done")
 
 
 # Reduces a list of list to a list
@@ -230,7 +230,7 @@ def wait_till_reset():
 
 def scan_repo(foundRepo, n=0):
     global rate_limit
-    global props
+    global deps
 
     mutex.acquire()
 
@@ -248,7 +248,7 @@ def scan_repo(foundRepo, n=0):
 
     # Check if it has a pom
     url = 'https://raw.githubusercontent.com/' + \
-        full_name + '/master/pom.xml'
+        full_name + '/master/'
 
     if get_pom(url, exec_space + pom_name) < 0:
         return()
@@ -278,22 +278,21 @@ def scan_repo(foundRepo, n=0):
         full_name + "/"
     repo_deps = []
     star_count = foundRepo.stargazers_count
+    m_q = Queue()
+    m_scanners = []
+    props = {}
 
     # Spawn children
     for i in range(n_mod_threads):
-        scanner = Module_scanner(m_q[n], n, i, base_url)
+        scanner = Module_scanner(m_q, n, i, base_url, props)
         scanner.daemon = True
-        m_scanners[n].append(scanner)
+        m_scanners.append(scanner)
         scanner.start()
 
     # Iterate over releases
     for release in tags:
         if base_url in [x[0] for x in exceptions]:
-            deps[n] = []
-            props[n] = {}
             break
-
-        print("Checkpoint 1")
 
         h = release.commit.sha
         git_tag = foundRepo.get_git_commit(h)
@@ -303,43 +302,40 @@ def scan_repo(foundRepo, n=0):
         if date > max_date:
             continue
 
-        print("Checkpoint 2")
         # Get the infos out of the master pom
-        url = base_url + h + "/pom.xml"
+        url = base_url + h + "/"
         if get_pom(url, exec_space + pom_name) < 0:
             continue
         min_info = get_min_info(exec_space + pom_name)
 
-        props[n]["project.groupId"] = min_info[0]
-        props[n]["project.artifactId"] = min_info[1]
-        props[n]["project.version"] = min_info[2]
+        props["project.groupId"] = min_info[0]
+        props["project.artifactId"] = min_info[1]
+        props["project.version"] = min_info[2]
 
-        r_deps, r_modules = scan_pom(exec_space + pom_name, n)
+        r_deps, r_modules = scan_pom(exec_space + pom_name, n, props)
 
         # If an error occured, skip this repo and write it to a list
         if r_deps == [-1]:
             exceptions.append((base_url, "rewrite of property"))
-            deps[n] = []
-            props[n] = {}
             print(exceptions[-1][1] + ": " + url)
             break
         elif r_deps == [-2]:
             exceptions.append((base_url, "missing key"))
-            deps[n] = []
-            props[n] = {}
             print(exceptions[-1][1] + ": " + url)
             break
 
-        print("Checkpoint 3")
+        deps[n] += r_deps
+
         # Give the children work: one url = one pom from a module
         base_url_h = base_url + h + "/"
 
         if r_modules != []:
+            print(r_modules)
             for m in r_modules:
-                m_q[n].put(base_url_h + m + "/pom.xml")
+                m_q.put(base_url_h + m + "/")
 
             # Wait for the children to finish
-            m_q[n].join()
+            m_q.join()
 
         print("Done with " + str(h))
 
@@ -347,14 +343,12 @@ def scan_repo(foundRepo, n=0):
         repo_deps.append([star_count] + min_info + red(deps[n]))
         # Reset deps and props to avoid trouble
         deps[n] = []
-        min_info = [props[n]["project.groupId"], props[n]
-                    ["project.artifactId"], props[n]["project.version"]]
+        props = {}
 
-    props[n] = {}
     # Stop worker threads
     for i in range(n_mod_threads):
-        m_q[n].put(None)
-    for t in m_scanners[n]:
+        m_q.put(None)
+    for t in m_scanners:
         t.join()
 
     # Write the data to a csv
@@ -409,6 +403,7 @@ class Job_giver(Thread):
 def main():
     jobs = Queue()
     q = Queue()
+    r_scanners = []
 
     # Spawn threads
     for i in range(n_threads):
