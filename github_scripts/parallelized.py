@@ -126,10 +126,8 @@ def scan_pom(pom, n=0, props={}):
         return([], modules)
 
     for depend in dependencies:
-        print(depend)
         info = ["groupId", "artifactId", "version"]
         for dep in depend.childNodes:
-            print(dep)
             if not dep.hasChildNodes():
                 continue
 
@@ -190,9 +188,11 @@ def scan_module(url, pom_name, queue, n=0, m=0, base_url="", props={}):
     if m_deps == [-1]:
         exceptions.write(url + ": rewrite of property " + m_mods[0])
         is_exception[n] = True
+        return()
     elif m_deps == [-2]:
         exceptions.write(url + ": missing key")
         is_exception[n] = True
+        return()
 
     if m_deps != []:
         deps[n] += m_deps
