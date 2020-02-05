@@ -19,7 +19,7 @@ STARS_MAX = 2000000
 max_date = datetime.datetime(year=2018, day=6, month=9)
 
 # Number of parent threads working on repos
-n_threads = 3
+n_threads = 5
 # Number of children threads working on modules
 n_mod_threads = 15
 
@@ -186,7 +186,8 @@ def scan_module(url, pom_name, queue, n=0, m=0, base_url="", props={}):
         deps[n] += m_deps
 
     for mod in m_mods:
-        queue.put(url + mod + "/")
+        if mod != -2:
+            queue.put(url + mod + "/")
 
 #  print("Out of scan_module")
 
@@ -218,16 +219,27 @@ class Module_scanner(Thread):
 
 # Reduces a list of list to a list
 def red(s):
+    try:
+        r = [x for i in range(len(s)) for x in s[i]]
+    except TypeError:
+        r1 = list(filter(lambda a: a !=-1, s))
+        r2 = list(filter(lambda a: a !=-2, r1))
+        #print(s) #with -1 -2
+        #print(r2) #without -1 -2
+        return [x for i in range(len(r2)) for x in r2[i]]
     return [x for i in range(len(s)) for x in s[i]]
 
 
 def wait_till_reset():
     global rate_limit
-    now = datetime.datetitme(year=1, month=1, day=1).now(datetime.timezone.utc)
+    now = datetime.datetime(year=1, month=1, day=1).now(datetime.timezone.utc).replace(microsecond=0, tzinfo=None)
     rl = gh.get_rate_limit()
-    reset = rl.core.reset
-    wait = reset - now
-    print("Going to sleep till API reset")
+    reset = rl.core.reset    
+    if(reset > now):
+        wait = reset - now
+    else:
+        wait = datetime.timedelta()
+    print("Going to sleep till API reset", wait)
     sleep(wait.total_seconds() + time_buffer)
     print("API has reset")
     rl = gh.get_rate_limit()
@@ -260,7 +272,7 @@ def scan_repo(foundRepo, n=0):
 
     if get_pom(url, exec_space + pom_name) < 0:
         return()
-
+    print('in repo', full_name)
     # Handle rate limit
     mutex.acquire()
     if rate_limit <= 0:
