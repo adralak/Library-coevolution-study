@@ -6,10 +6,16 @@ import datetime
 from threading import Thread, Lock
 from queue import Queue
 from time import sleep
+from sys import argv
+import os
 
 
 # Get token from user and log in
-token = input("Prompt")
+if len(argv) < 3:
+    print("Not enough arguments !")
+    exit(1)
+token = argv[1]
+interval = argv[2]
 gh = Github(token, per_page=1000)
 
 # These variables help filter which repos are seen
@@ -26,13 +32,17 @@ n_mod_threads = 15
 # Output
 deps = [[] for i in range(n_threads)]
 
-# For handling problematic repos
-exceptions = open("exceptions.txt", "w")
-is_exception = [False for i in range(n_threads)]
-other_probs = open("errors.txt", "w")
-
 # Where to write the poms to
-exec_space = "exec_space/"
+exec_space = "exec_space" + token + "/"
+list_dir = os.listdir()
+if exec_space not in list_dir:
+    os.mkdir(exec_space)
+
+# For handling problematic repos
+exceptions = open(exec_space + "exceptions" + token + ".txt", "w")
+is_exception = [False for i in range(n_threads)]
+other_probs = open(exec_space + "errors" + token + ".txt", "w")
+
 
 # Handle rate limit
 rl = gh.get_rate_limit()
@@ -43,7 +53,7 @@ time_buffer = 5
 
 # Writes the infos stores in deps[i] to a csv
 def write_to_csv(infos, n=0):
-    with open("data" + str(n) + ".csv", 'a', newline='') as f:
+    with open(exec_space + "data" + str(n) + ".csv", 'a', newline='') as f:
         writer = csv.writer(f)
         writer.writerows(infos)
 
@@ -152,6 +162,8 @@ def get_pom(url, buf):
     try:
         response = requests.get(url + "pom.xml")
     except requests.ConnectionError:
+        other_probs.write(url + ": connection error")
+        return(-1)
 
     if response.ok:
         with open(buf, "w") as f:
@@ -222,19 +234,20 @@ def red(s):
     try:
         r = [x for i in range(len(s)) for x in s[i]]
     except TypeError:
-        r1 = list(filter(lambda a: a !=-1, s))
-        r2 = list(filter(lambda a: a !=-2, r1))
-        #print(s) #with -1 -2
-        #print(r2) #without -1 -2
+        r1 = list(filter(lambda a: a != -1, s))
+        r2 = list(filter(lambda a: a != -2, r1))
+        # print(s) #with -1 -2
+        # print(r2) #without -1 -2
         return [x for i in range(len(r2)) for x in r2[i]]
     return [x for i in range(len(s)) for x in s[i]]
 
 
 def wait_till_reset():
     global rate_limit
-    now = datetime.datetime(year=1, month=1, day=1).now(datetime.timezone.utc).replace(microsecond=0, tzinfo=None)
+    now = datetime.datetime(year=1, month=1, day=1).now(
+        datetime.timezone.utc).replace(microsecond=0, tzinfo=None)
     rl = gh.get_rate_limit()
-    reset = rl.core.reset    
+    reset = rl.core.reset
     if(reset > now):
         wait = reset - now
     else:
@@ -379,7 +392,7 @@ def scan_repo(foundRepo, n=0):
 
     # Write the data to a csv
     if not is_exception[n]:
-        write_to_csv(repo_deps)
+        write_to_csv(repo_deps, n)
 
     is_exception[n] = False
 
@@ -424,7 +437,6 @@ class Job_giver(Thread):
             repos = get_query(query)
             for r in repos:
                 self.queue.put(r)
-#            print("Done adding " + query)
             self.jobs.task_done()
 
 
@@ -445,9 +457,7 @@ def main():
     job_giver.start()
 
     # Give the threads work to do
-    with open("intervals.txt", "r") as f:
-        for line in f:
-            jobs.put(line)
+    jobs.put(interval)
 
     # Wait for the work to be done
     jobs.join()
@@ -465,9 +475,4 @@ def main():
     print("All done !")
 
 
-props = {}
-min_info = get_min_info("pom3.xml")
-props["groupId"] = min_info[0]
-props["artifactId"] = min_info[1]
-props["version"] = min_info[2]
-print(scan_pom("pom3.xml", props=props))
+main()
