@@ -29,6 +29,7 @@ deps = [[] for i in range(n_threads)]
 # For handling problematic repos
 exceptions = open("exceptions.txt", "w")
 is_exception = [False for i in range(n_threads)]
+other_probs = open("errors.txt", "w")
 
 # Where to write the poms to
 exec_space = "exec_space/"
@@ -48,15 +49,34 @@ def write_to_csv(infos, n=0):
 
 
 # Gets the groupId, artifactId and version out of a given pom
-# TODO
 def get_min_info(pom, n=0):
     dom = minidom.parse(pom)
-    groupId = dom.getElementsByTagName("groupId")
-    artifactId = dom.getElementsByTagName("artifactId")
-    version = dom.getElementsByTagName("version")
-    min_info = [groupId[0].firstChild.data, artifactId[0].firstChild.data,
-                version[0].firstChild.data]
-    return(min_info)
+    temp = dom.childNodes
+    parent = False
+
+    for c in temp:
+        if c.nodeName == "project":
+            children = c.childNodes
+            break
+
+    for c in children:
+        if c.nodeName == "parent":
+            parent = True
+            break
+        if c.nodeName == "groupId":
+            groupId = c
+        elif c.nodeName == "artifactId":
+            artifactId = c
+        elif c.nodeName == "version":
+            version = c
+
+    if not parent:
+        min_info = [groupId.firstChild.data, artifactId.firstChild.data,
+                    version.firstChild.data]
+
+        return(min_info)
+    else:
+        return([])
 
 
 # Gets the value of a text node
@@ -76,7 +96,7 @@ def scan_pom(pom, n=0, props={}):
     deps = []
 
     dom = minidom.parse(pom)
-    depend = dom.getElementsByTagName("dependency")
+    dependencies = dom.getElementsByTagName("dependency")
     tmp_modules = dom.getElementsByTagName("module")
     tmp_properties = dom.getElementsByTagName("properties")
     modules = [m.firstChild.data for m in tmp_modules]
@@ -92,38 +112,35 @@ def scan_pom(pom, n=0, props={}):
                 else:
                     props[key] = data
 
-    if depend.length == 0:
+    if dependencies.length == 0:
         return([], modules)
 
-    for dep in depend:
-        info = []
+    for depend in dependencies:
+        print(depend)
+        info = ["groupId", "artifactId", "version"]
+        for dep in depend.childNodes:
+            print(dep)
+            if not dep.hasChildNodes():
+                continue
 
-        gpId = dep.getElementsByTagName("groupId")
-        if gpId != []:
-            v = get_value(gpId[0].firstChild.data, props)
-            if v == [-1]:
-                return([-2], [-2])
-            info.append(v)
-        else:
-            continue
+            if dep.nodeName == "groupId":
+                v = get_value(dep.firstChild.data, props)
+                if v == [-1]:
+                    return([-2], [-2])
+                info[0] = v
 
-        artId = dep.getElementsByTagName("artifactId")
-        if artId != []:
-            v = get_value(artId[0].firstChild.data, props)
-            if v == [-1]:
-                return([-2], [-2])
-            info.append(v)
-        else:
-            continue
+            if dep.nodeName == "artifactId":
+                v = get_value(dep.firstChild.data, props)
+                if v == [-1]:
+                    return([-2], [-2])
+                info[1] = v
 
-        version = dep.getElementsByTagName("version")
-        if version != []:
-            v = get_value(version[0].firstChild.data, props)
-            if v == [-1]:
-                return([-2], [-2])
-            info.append(v)
-        else:
-            continue
+            if dep.nodeName == "version":
+                v = get_value(dep.firstChild.data, props)
+                if v == [-1]:
+                    return([-2], [-2])
+                info[2] = v
+
         deps.append(info)
 
 #    print(deps)
@@ -132,7 +149,9 @@ def scan_pom(pom, n=0, props={}):
 
 # Downloads a pom and writes its contents to buf
 def get_pom(url, buf):
-    response = requests.get(url + "pom.xml")
+    try:
+        response = requests.get(url + "pom.xml")
+    except requests.ConnectionError:
 
     if response.ok:
         with open(buf, "w") as f:
@@ -169,7 +188,7 @@ def scan_module(url, pom_name, queue, n=0, m=0, base_url="", props={}):
     for mod in m_mods:
         queue.put(url + mod + "/")
 
-  #  print("Out of scan_module")
+#  print("Out of scan_module")
 
 
 # Class for the children threads
@@ -297,6 +316,11 @@ def scan_repo(foundRepo, n=0):
         if get_pom(url, exec_space + pom_name) < 0:
             continue
         min_info = get_min_info(exec_space + pom_name)
+
+        if min_info == []:
+            exceptions.write(url + ": parent pom has parent")
+            is_exception[n] = True
+            break
 
         props["project.groupId"] = min_info[0]
         props["project.artifactId"] = min_info[1]
@@ -429,4 +453,9 @@ def main():
     print("All done !")
 
 
-main()
+props = {}
+min_info = get_min_info("pom3.xml")
+props["groupId"] = min_info[0]
+props["artifactId"] = min_info[1]
+props["version"] = min_info[2]
+print(scan_pom("pom3.xml", props=props))
