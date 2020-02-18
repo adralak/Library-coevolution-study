@@ -15,8 +15,8 @@ if len(argv) < 4:
     print("Not enough arguments !")
     exit(1)
 token = argv[1]
-me = argv[2]
-total = argv[3]
+me = int(argv[2])
+total = int(argv[3])
 gh = Github(token, per_page=1000)
 intervals = []
 
@@ -40,9 +40,10 @@ deps = [[] for i in range(n_threads)]
 
 # Where to write the poms to
 exec_space = "exec_space" + token + "/"
-list_dir = os.listdir()
-if exec_space not in list_dir:
+try:
     os.mkdir(exec_space)
+except:
+    ()
 
 # For handling problematic repos
 exceptions = open(exec_space + "exceptions" + token + ".txt", "w")
