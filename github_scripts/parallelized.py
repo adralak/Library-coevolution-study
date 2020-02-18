@@ -11,12 +11,18 @@ import os
 
 
 # Get token from user and log in
-if len(argv) < 3:
+if len(argv) < 4:
     print("Not enough arguments !")
     exit(1)
 token = argv[1]
-interval = argv[2]
+me = argv[2]
+total = argv[3]
 gh = Github(token, per_page=1000)
+intervals = []
+
+with open("intervals.txt", 'r') as f:
+    for line in f:
+        intervals.append(line)
 
 # These variables help filter which repos are seen
 REPO_QUERY = 'language:java stars:>40000'  # pushed:>2016-12'
@@ -457,7 +463,9 @@ def main():
     job_giver.start()
 
     # Give the threads work to do
-    jobs.put(interval)
+    n_intervals = len(intervals)
+    for i in [j for j in range(n_intervals) if (j % total == me)]:
+        jobs.put(intervals[i])
 
     # Wait for the work to be done
     jobs.join()
