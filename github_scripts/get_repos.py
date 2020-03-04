@@ -291,6 +291,8 @@ def main():
     jobs.put(None)
     job_giver.join()
 
+    with open("done" + str(me) + ".txt", "r") as f:
+        f.write(str(me) + "is done!")
     print("All done !")
 
 
