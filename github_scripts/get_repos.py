@@ -17,6 +17,7 @@ if len(argv) < 4:
 token = argv[1]
 me = int(argv[2])
 total = int(argv[3])
+print("I am", token)
 gh = Github(token, per_page=1000)
 intervals = []
 
@@ -125,7 +126,7 @@ def wait_till_reset():
 
 
 # Scan a whole repo
-def scan_repo(foundRepo, n=0):
+def scan_repo(foundRepo, n=0, ident=0):
     global rate_limit
 
     mutex.acquire()
@@ -140,7 +141,7 @@ def scan_repo(foundRepo, n=0):
 
 #    print(str(n) + ": Looking for pom in " + full_name)
 
-    pom_name = "pom" + str(n) + ".xml"
+    pom_name = "pom" + str(ident) + ".xml"
 
     # Check if it has a pom
     url = 'https://raw.githubusercontent.com/' + \
@@ -215,7 +216,7 @@ class Repo_scanner(Thread):
     def __init__(self, queue, n):
         Thread.__init__(self)
         self.queue = queue
-        self.n = self.ident
+        self.n = n
 
     def run(self):
         sleep(2)
@@ -225,13 +226,13 @@ class Repo_scanner(Thread):
             repo = self.queue.get()
             if repo is None:
                 break
-            info = scan_repo(repo, self.n)
+            info = scan_repo(repo, self.n, self.ident)
             if info is None:
                 continue
             else:
                 infos.append(info)
             self.queue.task_done()
-        write_to_csv(infos, self.n)
+        write_to_csv(infos, self.ident)
 
 
 def get_query(query):
