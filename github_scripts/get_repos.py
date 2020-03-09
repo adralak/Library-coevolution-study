@@ -157,7 +157,7 @@ def scan_repo(foundRepo, n=0):
     tags = foundRepo.get_tags()
     num_queries = tags.totalCount + 1
 
-    if num_queries >= 5000:
+    if num_queries >= 4900:
         exceptions.write(url + ": Too many API requests")
         is_exception[n] = True
         return()
@@ -166,6 +166,8 @@ def scan_repo(foundRepo, n=0):
 
     if rate_limit <= 0:
         wait_till_reset()
+
+    rate_limit -= num_queries
 
     mutex.release()
 
@@ -213,7 +215,7 @@ class Repo_scanner(Thread):
     def __init__(self, queue, n):
         Thread.__init__(self)
         self.queue = queue
-        self.n = n
+        self.n = self.ident
 
     def run(self):
         sleep(2)
