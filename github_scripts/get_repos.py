@@ -17,7 +17,6 @@ if len(argv) < 4:
 token = argv[1]
 me = int(argv[2])
 total = int(argv[3])
-print("I am", token)
 gh = Github(token, per_page=1000)
 intervals = []
 
@@ -48,7 +47,11 @@ other_probs = open(exec_space + "errors" + token + ".txt", "w")
 
 
 # Handle rate limit
-rl = gh.get_rate_limit()
+try:
+    rl = gh.get_rate_limit()
+except:
+    print("I am", token)
+    sleep(10000)
 rate_limit = rl.core.remaining - 100
 mutex = Lock()
 time_buffer = 5
@@ -177,8 +180,6 @@ def scan_repo(foundRepo, n=0, ident=0):
     base_url = 'https://raw.githubusercontent.com/' + \
         full_name + "/"
     star_count = foundRepo.stargazers_count
-    min_info = get_min_info(exec_space + pom_name)
-    min_info = min_info[:-1] + [star_count]
     urls = []
 
     # Iterate over releases
@@ -198,14 +199,9 @@ def scan_repo(foundRepo, n=0, ident=0):
         url = base_url + h + "/"
         urls.append(url)
 
-        if min_info == []:
-            exceptions.write(url + ": parent pom has parent")
-            is_exception[n] = True
-            break
-
     # Write the data to a csv
     if not is_exception[n]:
-        return(min_info + urls)
+        return(["https://www.github.com/" + full_name, star_count] + urls)
     else:
         is_exception[n] = False
         return(None)
