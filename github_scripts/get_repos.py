@@ -251,8 +251,12 @@ class Job_giver(Thread):
             if query is None:
                 break
             repos = get_query(query)
-            for r in repos:
-                self.queue.put(r)
+            try:
+                for r in repos:
+                    self.queue.put(r)
+            except:
+                with open("query_errors.txt", "a") as f:
+                    f.write("Error while handling query", query)
             self.jobs.task_done()
 
 
