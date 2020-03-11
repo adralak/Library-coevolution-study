@@ -159,7 +159,7 @@ def scan_repo(foundRepo, n=0, ident=0):
         wait_till_reset()
 
     tags = foundRepo.get_tags()
-    num_queries = tags.totalCount + 1
+    num_queries = 4 * tags.totalCount + 4
 
     if num_queries >= 4900:
         exceptions.write(url + ": Too many API requests")
@@ -294,7 +294,7 @@ def main():
     jobs.put(None)
     job_giver.join()
 
-    with open("done" + str(me) + ".txt", "r") as f:
+    with open("done" + str(me) + ".txt", "w") as f:
         f.write(str(me) + "is done!")
     print("All done !")
 
