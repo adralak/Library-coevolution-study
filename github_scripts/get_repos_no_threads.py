@@ -134,7 +134,10 @@ def scan_repo(foundRepo, n=0, ident=0):
         full_name + '/master/'
 
     if get_pom(url, exec_space + pom_name) < 0:
-        return()
+        return(None)  # return(False, full_name)
+    # else:
+    # return(True, full_name)
+    # Comment the rest below
     print('in repo', full_name)
     # Handle rate limit
 
@@ -196,11 +199,11 @@ def main():
         infos = []
 
         for repo in repos:
-            info = scan_repo(repo)
+            info, name = scan_repo(repo)
 
-            if info is None:
-                continue
-
+            if info is None:  # if info:
+                continue  # infos.append(name)
+            # Comment following line
             infos.append(info)
         write_to_csv(infos, i)
 
