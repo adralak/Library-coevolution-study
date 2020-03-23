@@ -44,8 +44,8 @@ time_buffer = 5
 
 
 # Writes the infos stores in deps[i] to a csv
-def write_to_csv(infos, n=0):
-    with open(exec_space + "data" + str(n) + ".csv", 'w', newline='') as f:
+def write_to_csv(infos, q=""):
+    with open(exec_space + "data_" + q + ".csv", 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerows(infos)
 
@@ -199,13 +199,13 @@ def main():
         infos = []
 
         for repo in repos:
-            info, name = scan_repo(repo)
+            info = scan_repo(repo)
 
             if info is None:  # if info:
                 continue  # infos.append(name)
             # Comment following line
             infos.append(info)
-        write_to_csv(infos, i)
+        write_to_csv(infos, intervals[i])
 
     print("All done !")
 
