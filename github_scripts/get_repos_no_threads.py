@@ -12,6 +12,8 @@ import os
 
 # Get token from user and log in
 token = argv[1]
+me = int(argv[2])
+total = int(argv[3])
 gh = Github(token, per_page=1000)
 intervals = []
 
@@ -195,6 +197,9 @@ def main():
     n_intervals = len(intervals)
 
     for i in range(n_intervals):
+        if i % total != me:
+            continue
+
         repos = get_query(intervals[i])
         infos = []
 
