@@ -32,22 +32,22 @@ except:
     ()
 
 # For handling problematic repos
-exceptions = open(exec_space + "exceptions" + token + ".txt", "w")
-other_probs = open(exec_space + "errors" + token + ".txt", "w")
+exceptions = open(exec_space + "exceptions" + token + ".txt", "a")
+other_probs = open(exec_space + "errors" + token + ".txt", "a")
 
 # Handle rate limit
 try:
     rl = gh.get_rate_limit()
 except:
     print("I am", token)
-    sleep(10000)
+    sleep(3600)
 rate_limit = rl.core.remaining - 100
-time_buffer = 5
+time_buffer = 120
 
 
 # Writes the infos stores in deps[i] to a csv
 def write_to_csv(infos, q=""):
-    with open(exec_space + "data_" + q + ".csv", 'w', newline='') as f:
+    with open(exec_space + "data_" + q + ".csv", 'a', newline='') as f:
         writer = csv.writer(f)
         writer.writerows(infos)
 
@@ -88,7 +88,7 @@ def get_pom(url, buf):
     try:
         response = requests.get(url + "pom.xml")
     except requests.ConnectionError:
-        other_probs.write(url + ": connection error")
+        other_probs.write(url + ": connection error \n")
         return(-1)
 
     if response.ok:
@@ -113,7 +113,13 @@ def wait_till_reset():
     print("Going to sleep till API reset", wait)
     sleep(wait.total_seconds() + time_buffer)
     print("API has reset")
-    rl = gh.get_rate_limit()
+    #rl = gh.get_rate_limit()
+	try:
+        rl = gh.get_rate_limit()
+    except:
+        print("Going to sleep for 1h due error in rl = gh.get_rate_limit()")
+		sleep(3600)
+		rl = gh.get_rate_limit()
     rate_limit = rl.core.remaining - 100
 
 
@@ -150,7 +156,7 @@ def scan_repo(foundRepo, n=0, ident=0):
     num_queries = 3 * tags.totalCount + 3
 
     if num_queries >= 4900:
-        exceptions.write(url + ": Too many API requests")
+        other_probs.write(url + ": Too many API requests \n")
         return(None)
 
     rate_limit -= num_queries
@@ -170,8 +176,17 @@ def scan_repo(foundRepo, n=0, ident=0):
     # Iterate over releases
     for release in tags:
         h = release.commit.sha
-        git_tag = foundRepo.get_git_commit(h)
-        date = git_tag.committer.date
+        #git_tag = foundRepo.get_git_commit(h)
+		#handle error from getting the commit, it happens sometimes
+		try:
+            git_tag = foundRepo.get_git_commit(h)
+        except:
+            print("encountered error in git_tag = foundRepo.get_git_commit(h) for "+full_name)
+		    exceptions.write("https://github.com/" + full_name + " : error in gettign a comlit h \n")
+			continue
+			#sleep(3600)
+        
+		date = git_tag.committer.date
 
         # If it was released after the MDG snapshot, it is ignored
         if date > max_date:
