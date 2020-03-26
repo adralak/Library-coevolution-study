@@ -114,12 +114,12 @@ def wait_till_reset():
     sleep(wait.total_seconds() + time_buffer)
     print("API has reset")
     #rl = gh.get_rate_limit()
-	try:
+    try:
         rl = gh.get_rate_limit()
     except:
         print("Going to sleep for 1h due error in rl = gh.get_rate_limit()")
-		sleep(3600)
-		rl = gh.get_rate_limit()
+        sleep(3600)
+        rl = gh.get_rate_limit()
     rate_limit = rl.core.remaining - 100
 
 
@@ -156,7 +156,7 @@ def scan_repo(foundRepo, n=0, ident=0):
     num_queries = 3 * tags.totalCount + 3
 
     if num_queries >= 4900:
-        other_probs.write(url + ": Too many API requests \n")
+        exceptions.write(url + ": Too many API requests \n")
         return(None)
 
     rate_limit -= num_queries
@@ -178,15 +178,14 @@ def scan_repo(foundRepo, n=0, ident=0):
         h = release.commit.sha
         #git_tag = foundRepo.get_git_commit(h)
 		#handle error from getting the commit, it happens sometimes
-		try:
+        try:
             git_tag = foundRepo.get_git_commit(h)
         except:
             print("encountered error in git_tag = foundRepo.get_git_commit(h) for "+full_name)
-		    exceptions.write("https://github.com/" + full_name + " : error in gettign a comlit h \n")
-			continue
+            other_probs.write("https://github.com/" + full_name + " : error in gettign a comlit h \n")
+            continue
 			#sleep(3600)
-        
-		date = git_tag.committer.date
+        date = git_tag.committer.date
 
         # If it was released after the MDG snapshot, it is ignored
         if date > max_date:
