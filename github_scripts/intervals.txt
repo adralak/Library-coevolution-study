@@ -1,30 +1,59 @@
-stars:2240..90000 language:Java
-stars:1240..2239 language:Java
-stars:815..1239 language:Java
-stars:595..814 language:Java
-stars:465..594 language:Java
-stars:380..464 language:Java
-stars:315..379 language:Java
-stars:267..314 language:Java
-stars:228..266 language:Java
-stars:197..227 language:Java
-stars:173..196 language:Java
-stars:154..172 language:Java
-stars:139..153 language:Java
-stars:126..138 language:Java
-stars:115..125 language:Java
-stars:105..114 language:Java
-stars:97..104 language:Java
-stars:90..96 language:Java
-stars:84..89 language:Java
-stars:79..83 language:Java
-stars:74..78 language:Java
-stars:70..73 language:Java
-stars:66..69 language:Java
-stars:63..65 language:Java
-stars:60..62 language:Java
-stars:57..59 language:Java
-stars:54..56 language:Java
+stars:3241..90000 language:Java
+stars:2240..3240 language:Java
+stars:1641..2239 language:Java
+stars:1240..1640 language:Java
+stars:1001..1239 language:Java
+stars:815..1000 language:Java
+stars:691..814 language:Java
+stars:595..690 language:Java
+stars:521..594 language:Java
+stars:465..520 language:Java
+stars:421..464 language:Java
+stars:380..420 language:Java
+stars:346..379 language:Java
+stars:315..345 language:Java
+stars:287..314 language:Java
+stars:267..286 language:Java
+stars:248..266 language:Java
+stars:228..247 language:Java
+stars:211..227 language:Java
+stars:197..210 language:Java
+stars:184..196 language:Java
+stars:173..183 language:Java
+stars:163..172 language:Java
+stars:154..162 language:Java
+stars:146..153 language:Java
+stars:139..145 language:Java
+stars:132..138 language:Java
+stars:126..131 language:Java
+stars:121..125 language:Java
+stars:115..120 language:Java
+stars:110..114 language:Java
+stars:105..109 language:Java
+stars:101..104 language:Java
+stars:97..100 language:Java
+stars:94..96 language:Java
+stars:90..93 language:Java
+stars:87..89 language:Java
+stars:84..86 language:Java
+stars:81..83 language:Java
+stars:79..80 language:Java
+stars:76..78 language:Java
+stars:74..75 language:Java
+stars:72..73 language:Java
+stars:70..71 language:Java
+stars:68..69 language:Java
+stars:66..67 language:Java
+stars:63..65 language:Java created:>2016-01-01
+stars:63..65 language:Java created:<=2016-01-01
+stars:60..62 language:Java created:>2016-01-01
+stars:60..62 language:Java created:<=2016-01-01
+stars:57..59 language:Java created:>2016-01-01
+stars:57..59 language:Java created:<=2016-01-01
+stars:57..59 language:Java created:<=2016-01-01
+stars:57..59 language:Java created:>2016-01-01
+stars:54..56 language:Java created:>2016-01-01
+stars:54..56 language:Java created:<=2016-01-01
 stars:52..53 language:Java
 stars:50..51 language:Java
 stars:48..49 language:Java

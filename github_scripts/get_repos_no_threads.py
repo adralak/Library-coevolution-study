@@ -127,7 +127,7 @@ def wait_till_reset():
 def scan_repo(foundRepo, n=0, ident=0):
     global rate_limit
 
-    if rate_limit <= 0:
+    if rate_limit <= 1:
         wait_till_reset()
 
     full_name = foundRepo.full_name
@@ -149,7 +149,7 @@ def scan_repo(foundRepo, n=0, ident=0):
     print('in repo', full_name)
     # Handle rate limit
 
-    if rate_limit <= 0:
+    if rate_limit <= 2:
         wait_till_reset()
 
     tags = foundRepo.get_tags()
