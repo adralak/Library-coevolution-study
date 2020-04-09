@@ -1,2 +1,8 @@
 *~
 *pom*.xml
+*.log
+*.out
+*.pdf
+*.fls
+*.fdb_latexmk
+*.el
