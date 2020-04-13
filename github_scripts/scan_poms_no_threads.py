@@ -271,7 +271,6 @@ def main():
             if deps is None:
                 break
             all_deps.append([urls[0], urls[2], url] + deps)
-        seen = []
 
     write_to_csv(all_deps, csv_to_handle)
 
