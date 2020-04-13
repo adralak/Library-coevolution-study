@@ -9,14 +9,14 @@ from sys import argv
 import os
 
 
-# Get token from user and log in
+# Get to_handle from user and log in
 if len(argv) < 2:
     print("Not enough arguments !")
     exit(1)
-token = argv[1]
+to_handle = argv[1]
 
 # Where to write the poms to
-exec_space = "exec_space" + token + "/"
+exec_space = "exec_space" + to_handle + "/"
 data_dir = "data/"
 try:
     os.mkdir(exec_space)
@@ -24,13 +24,13 @@ except:
     ()
 
 # For handling problematic repos
-exceptions = open(exec_space + "exceptions" + token + ".txt", "w")
-other_probs = open(exec_space + "errors" + token + ".txt", "w")
+exceptions = open(exec_space + "exceptions" + to_handle + ".txt", "w")
+other_probs = open(exec_space + "errors" + to_handle + ".txt", "w")
 
 
 # Writes the infos stores in deps[i] to a csv
-def write_to_csv(infos, token=""):
-    with open(exec_space + "data" + token + ".csv", 'a', newline='') as f:
+def write_to_csv(infos, to_handle=""):
+    with open(exec_space + "data" + to_handle + ".csv", 'a', newline='') as f:
         writer = csv.writer(f)
         writer.writerows(infos)
 
@@ -252,24 +252,27 @@ def scan_repo(url, n=0):
 def main():
     repo_urls = []
 
-    with open(data_dir + "data_" + token + ".csv", 'r', newline='') as f:
+    with open(to_handle, 'r', newline='') as f:
         reader = csv.reader(f)
         for row in reader:
             if len(row) > 2:
                 repo_urls.append([row[0][24:], row[0], row[1]] + row[2:])
 
     all_deps = []
+    seen = []
 
     for urls in repo_urls:
-        for url in urls[4:]:
-            if len(url) < 34:
+        for url in urls[3:]:
+            if len(url) < 34 or url in seen:
                 continue
+            seen.append(url)
             deps = scan_repo(url)
             if deps is None:
                 break
             all_deps.append([urls[0], urls[2], url] + deps)
+        seen = []
 
-    write_to_csv(all_deps, token)
+    write_to_csv(all_deps, to_handle)
 
     print("All done !")
 
