@@ -16,7 +16,8 @@ if len(argv) < 2:
 to_handle = argv[1]
 
 # Where to write the poms to
-exec_space = "exec_space" + to_handle + "/"
+csv_to_handle = to_handle[5:]
+exec_space = "exec_space" + csv_to_handle + "/"
 data_dir = "data/"
 try:
     os.mkdir(exec_space)
@@ -24,8 +25,8 @@ except:
     ()
 
 # For handling problematic repos
-exceptions = open(exec_space + "exceptions" + to_handle + ".txt", "w")
-other_probs = open(exec_space + "errors" + to_handle + ".txt", "w")
+exceptions = open(exec_space + "exceptions" + csv_to_handle + ".txt", "w")
+other_probs = open(exec_space + "errors" + csv_to_handle + ".txt", "w")
 
 
 # Writes the infos stores in deps[i] to a csv
@@ -194,7 +195,7 @@ def red(s):
 def scan_repo(url, n=0):
     global deps
 
-    print("Inspecting" + url)
+    print("Inspecting", url)
 
     pom_name = "pom" + str(n) + ".xml"
     is_exception = False
@@ -272,7 +273,7 @@ def main():
             all_deps.append([urls[0], urls[2], url] + deps)
         seen = []
 
-    write_to_csv(all_deps, to_handle)
+    write_to_csv(all_deps, csv_to_handle)
 
     print("All done !")
 
