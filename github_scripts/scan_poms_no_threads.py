@@ -16,8 +16,7 @@ if len(argv) < 2:
 to_handle = argv[1]
 
 # Where to write the poms to
-csv_to_handle = to_handle[5:]
-exec_space = "exec_space" + csv_to_handle + "/"
+exec_space = "dataResult/" + to_handle + "/"
 data_dir = "data/"
 try:
     os.mkdir(exec_space)
@@ -25,13 +24,14 @@ except:
     ()
 
 # For handling problematic repos
-exceptions = open(exec_space + "exceptions" + csv_to_handle + ".txt", "w")
-other_probs = open(exec_space + "errors" + csv_to_handle + ".txt", "w")
+parentpom = open(exec_space + "parentpom" + to_handle + ".txt", "w")
+exceptions = open(exec_space + "exceptions" + to_handle + ".txt", "w")
+other_probs = open(exec_space + "errors" + to_handle + ".txt", "w")
 
 
 # Writes the infos stores in deps[i] to a csv
 def write_to_csv(infos, to_handle=""):
-    with open(exec_space + "data" + to_handle + ".csv", 'a', newline='') as f:
+    with open(exec_space + to_handle + "_dependecies.csv", 'a', newline='') as f:
         writer = csv.writer(f)
         writer.writerows(infos)
 
@@ -161,14 +161,14 @@ def scan_module(url, pom_name, queue, n=0, m=0, base_url="", props={}):
             exec_space + "module_" + str(m) + pom_name, n, props)
     except:
         #        print(url)
-        exceptions.write(url + ": exception raised in scan_pom")
+        exceptions.write(url + ": exception raised in scan_pom" + "\n")
         return(None)
 
     if m_deps == [-1]:
-        exceptions.write(url + ": rewrite of property " + m_mods[0])
+        exceptions.write(url + ": rewrite of property " + m_mods[0] + "\n")
         return(None)
     elif m_deps == [-2]:
-        exceptions.write(url + ": missing key")
+        exceptions.write(url + ": missing key" + "\n")
         return(None)
 
     for mod in m_mods:
@@ -195,7 +195,7 @@ def red(s):
 def scan_repo(url, n=0):
     global deps
 
-    print("Inspecting", url)
+    #print("Inspecting" + url)
 
     pom_name = "pom" + str(n) + ".xml"
     is_exception = False
@@ -209,7 +209,7 @@ def scan_repo(url, n=0):
     min_info = get_min_info(exec_space + pom_name, n)
 
     if min_info == []:
-        exceptions.write(url + ": parent pom has parent")
+        parentpom.write(url + ": parent pom has parent" + "\n")
         return(None)
 
     props["project.groupId"] = min_info[0]
@@ -220,11 +220,11 @@ def scan_repo(url, n=0):
 
     # If an error occured, skip this repo and write it to a list
     if r_deps == [-1]:
-        exceptions.write(url + ": rewrite of property")
+        exceptions.write(url + ": rewrite of property" + "\n")
         is_exception = True
         return(None)
     elif r_deps == [-2]:
-        exceptions.write(url + ": missing key")
+        exceptions.write(url + ": missing key" + "\n")
         is_exception = True
         return(None)
 
@@ -253,7 +253,8 @@ def scan_repo(url, n=0):
 def main():
     repo_urls = []
 
-    with open(to_handle, 'r', newline='') as f:
+    print(to_handle)
+    with open(data_dir + to_handle, 'r', newline='') as f:
         reader = csv.reader(f)
         for row in reader:
             if len(row) > 2:
@@ -272,7 +273,7 @@ def main():
                 break
             all_deps.append([urls[0], urls[2], url] + deps)
 
-    write_to_csv(all_deps, csv_to_handle)
+    write_to_csv(all_deps, to_handle)
 
     print("All done !")
 
