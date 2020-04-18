@@ -3,7 +3,6 @@ import requests
 import csv
 import datetime
 from threading import Thread
-from queue import Queue
 from time import sleep
 from sys import argv
 import os
@@ -27,9 +26,11 @@ except:
 parentpom = open(exec_space + "parentpom" + to_handle + ".txt", "w")
 exceptions = open(exec_space + "exceptions" + to_handle + ".txt", "w")
 other_probs = open(exec_space + "errors" + to_handle + ".txt", "w")
-
+n_prob_poms = 0
 
 # Writes the infos stores in deps[i] to a csv
+
+
 def write_to_csv(infos, to_handle=""):
     with open(exec_space + to_handle + "_dependecies.csv", 'a', newline='') as f:
         writer = csv.writer(f)
@@ -85,20 +86,43 @@ def scan_pom(pom, n=0, props={}):
 
     dom = minidom.parse(pom)
     dependencies = dom.getElementsByTagName("dependency")
+    parent = dom.getElementsByTagName("parent")
     tmp_modules = dom.getElementsByTagName("module")
     tmp_properties = dom.getElementsByTagName("properties")
-    modules = [m.firstChild.data for m in tmp_modules]
+    modules = []
+
+    if tmp_modules.length > 0:
+        for m in tmp_modules:
+            if m.firstChild is not None:
+                modules.append(m.firstChild.data)
+
+    if parent.length > 0:
+        for node in parent.item(0).childNodes:
+            if node.nodeType == minidom.Node.ELEMENT_NODE:
+                first_key = "project.parent." + node.nodeName
+                second_key = "parent." + node.nodeName
+                interm = node.firstChild
+
+                if interm is None:
+                    continue
+
+                data = interm.data
+
+                props[first_key] = data
+                props[second_key] = data
 
     if tmp_properties.length > 0:
         for node in tmp_properties.item(0).childNodes:
-            if node.hasChildNodes():
+            if node.nodeType == minidom.Node.ELEMENT_NODE:
                 key = node.nodeName
-                data = node.firstChild.data
+                interm = node.firstChild
 
-                if key in props and data != props[key]:
-                    return([-1], [key])
-                else:
-                    props[key] = data
+                if interm is None:
+                    continue
+
+                data = interm.data
+
+                props[key] = data
 
     if dependencies.length == 0:
         return([], modules)
@@ -106,25 +130,28 @@ def scan_pom(pom, n=0, props={}):
     for depend in dependencies:
         info = ["groupId", "artifactId", "version"]
         for dep in depend.childNodes:
+            if dep is None:
+                continue
+
             if not dep.hasChildNodes():
                 continue
 
             if dep.nodeName == "groupId":
                 v = get_value(dep.firstChild.data, props)
                 if v == [-1]:
-                    return([-2], [-2])
+                    return([-2], [dep.firstChild.data[2:-1]])
                 info[0] = v
 
             if dep.nodeName == "artifactId":
                 v = get_value(dep.firstChild.data, props)
                 if v == [-1]:
-                    return([-2], [-2])
+                    return([-2], [dep.firstChild.data[2:-1]])
                 info[1] = v
 
             if dep.nodeName == "version":
                 v = get_value(dep.firstChild.data, props)
                 if v == [-1]:
-                    return([-2], [-2])
+                    return([-2], [dep.firstChild.data[2:-1]])
                 info[2] = v
 
         deps.append(info)
@@ -149,8 +176,17 @@ def get_pom(url, buf):
         return(-1)
 
 
+def write_problem_pom(pom_name):
+    global n_prob_poms
+    n_prob_poms += 1
+    with open(exec_space + pom_name, "r") as pom:
+        with open(exec_space + "prob_pom" + str(n_prob_poms) + ".xml", "w") as prob:
+            for line in pom:
+                prob.write(line)
+
+
 # Gets the pom of a module and scans in for dependencies and submodules
-def scan_module(url, pom_name, queue, n=0, m=0, base_url="", props={}):
+def scan_module(url, pom_name, stack, n=0, m=0, base_url="", props={}):
 
     #    print("In scan_module")
     if get_pom(url, exec_space + "module_" + str(m) + pom_name) < 0:
@@ -160,20 +196,20 @@ def scan_module(url, pom_name, queue, n=0, m=0, base_url="", props={}):
         m_deps, m_mods = scan_pom(
             exec_space + "module_" + str(m) + pom_name, n, props)
     except:
-        #        print(url)
         exceptions.write(url + ": exception raised in scan_pom" + "\n")
+        write_problem_pom("module_" + str(m) + pom_name)
         return(None)
 
     if m_deps == [-1]:
         exceptions.write(url + ": rewrite of property " + m_mods[0] + "\n")
         return(None)
     elif m_deps == [-2]:
-        exceptions.write(url + ": missing key" + "\n")
+        exceptions.write(url + ": missing key " + m_mods[0] + "\n")
         return(None)
 
     for mod in m_mods:
         if mod != -2:
-            queue.put(url + mod + "/")
+            stack.append(url + mod + "/")
 
     return(m_deps)
 
@@ -201,7 +237,7 @@ def scan_repo(url, n=0):
     is_exception = False
     repo_deps = []
     props = {}
-    m_q = Queue()
+    m_q = []
 
     if get_pom(url, exec_space + pom_name) < 0:
         return(None)
@@ -216,28 +252,30 @@ def scan_repo(url, n=0):
     props["project.artifactId"] = min_info[1]
     props["project.version"] = min_info[2]
 
-    r_deps, r_modules = scan_pom(exec_space + pom_name, n, props)
+    try:
+        r_deps, r_modules = scan_pom(exec_space + pom_name, n, props)
+    except:
+        exceptions.write(url + ": exception raised in scan_pom" + "\n")
+        write_problem_pom(pom_name)
+        return(None)
 
     # If an error occured, skip this repo and write it to a list
     if r_deps == [-1]:
-        exceptions.write(url + ": rewrite of property" + "\n")
+        exceptions.write(url + ": rewrite of property" + r_modules[0] + "\n")
         is_exception = True
         return(None)
     elif r_deps == [-2]:
-        exceptions.write(url + ": missing key" + "\n")
+        exceptions.write(url + ": missing key" + r_modules[0] + "\n")
         is_exception = True
         return(None)
 
     repo_deps += r_deps
 
     for m in r_modules:
-        m_q.put(url + m + "/")
+        m_q.append(url + m + "/")
 
-    while not m_q.empty():
-        try:
-            module = m_q.get_nowait()
-        except Queue.QueueEmpty:
-            break
+    while m_q != []:
+        module = m_q.pop()
 
         m_deps = scan_module(module, pom_name, m_q, props=props)
 
@@ -279,3 +317,4 @@ def main():
 
 
 main()
+# scan_pom(exec_space + "prob_pom1.xml")
