@@ -53,7 +53,6 @@ def get_value(data, props):
 def get_min_info(path, pom):
     dom = minidom.parse(path + pom)
     temp = dom.childNodes
-    parent = False
 
     for c in temp:
         if c.nodeName == "project":
@@ -61,9 +60,6 @@ def get_min_info(path, pom):
             break
 
     for c in children:
-        if c.nodeName == "parent":
-            parent = True
-            break
         if c.nodeName == "groupId":
             groupId = c
         elif c.nodeName == "artifactId":
@@ -71,13 +67,9 @@ def get_min_info(path, pom):
         elif c.nodeName == "version":
             version = c
 
-    if not parent:
-        min_info = [groupId.firstChild.data, artifactId.firstChild.data,
-                    version.firstChild.data]
-
-        return(min_info)
-    else:
-        return([])
+    min_info = [groupId.firstChild.data, artifactId.firstChild.data,
+                version.firstChild.data]
+    return(min_info)
 
 
 # Try to find parent pom in maven central and download its contents to buf
@@ -87,7 +79,7 @@ def get_parent_pom_from_maven(path, pom, parent, props):
 
     maven_repos = ['https://repo1.maven.org/maven2/', 'https://repo.spring.io/plugins-release/', 'https://repo.spring.io/libs-milestone/', 'https://repo.spring.io/libs-release/', 'https://repo.jenkins-ci.org/releases', 'https://repo.jenkins-ci.org/incrementals/', 'https://repository.mulesoft.org/nexus/content/repositories/public/', 'https://repository.cloudera.com/artifactory/public', 'https://repository.cloudera.com/artifactory/cloudera-repos/', 'https://repo.hortonworks.com/content/repositories/releases/', 'https://packages.atlassian.com/content/repositories/atlassian-public/', 'https://jcenter.bintray.com/', 'https://repository.jboss.org/nexus/content/repositories/ea/', 'https://repository.jboss.org/nexus/content/repositories/releases/', 'https://maven.wso2.org/nexus/content/repositories/releases/', 'https://maven.wso2.org/nexus/content/repositories/public/', 'https://maven.wso2.org/nexus/content/repositories/',
                    'https://maven.xwiki.org/releases/', 'https://maven-eu.nuxeo.org/nexus/content/repositories/public-releases/', 'https://maven-eu.nuxeo.org/nexus/content/repositories/', 'https://dl.bintray.com/kotlin/kotlin-dev/', 'https://repo.clojars.org/', 'http://maven.geomajas.org/nexus/content/groups/public/', 'https://plugins.gradle.org/m2/', 'https://dl.bintray.com/spinnaker/spinnaker/', 'https://maven.ibiblio.org/maven2/', 'https://philanthropist.touk.pl/nexus/content/repositories/releases/', 'https://clojars.org/', 'http://maven.jahia.org/maven2/', 'https://repository.mulesoft.org/releases/', 'https://build.surfconext.nl/repository/public/releases/', 'https://build.openconext.org/repository/public/releases/']
-
+    print("In get_parent_pom_from_maven")
     for mvn_repo in maven_repos:
 
         parentGI, parentAID, parentV = ''
@@ -113,7 +105,8 @@ def get_parent_pom_from_maven(path, pom, parent, props):
                 f.write(response.text)
                 parent_deps, parent_mods = scan_pom(
                     path, pom, False, props=props)
-
+                print("Out of get_parent_pom_from_maven")
+                print(parent_deps)
                 return(parent_deps, parent_mods)
 
     return([], [])
@@ -299,10 +292,6 @@ def scan_repo(url):
         return(None)
 
     min_info = get_min_info(exec_space, pom_name)
-
-    if min_info == []:
-        parentpom.write(url + ": parent pom has parent" + "\n")
-        return(None)
 
     props["project.groupId"] = min_info[0]
     props["project.artifactId"] = min_info[1]
