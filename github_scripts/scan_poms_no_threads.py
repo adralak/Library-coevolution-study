@@ -157,7 +157,7 @@ def scan_pom(path, pom, in_module=True, props={}):
 
         if in_module and\
            (props["parent.groupId"] != props["project.groupId"] or
-            props["parent.artifactId"] != props["project.artifactId"] or
+            # props["parent.artifactId"] != props["project.artifactId"] or
                 props["parent.version"] != props["project.version"]):
             p_deps, p_mods = get_parent_pom_from_maven(
                 path, "parent_" + pom, parent.item(0), props)
@@ -287,7 +287,7 @@ def red(s):
 def scan_repo(url):
     global deps
 
-    #print("Inspecting" + url)
+    print("Inspecting", url)
 
     pom_name = "pom.xml"
     is_exception = False
