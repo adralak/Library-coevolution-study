@@ -79,6 +79,44 @@ def get_min_info(pom, n=0):
     else:
         return([])
 
+# Try to find parent pom in maven central and download its contents to buf
+# this should be called recursively to get dependecies and properties of all pom parents
+#takes the parent node, 
+def get_parent_pom_from_maven(buf, parent):
+
+    maven_repos = ['https://repo1.maven.org/maven2/', 'https://repo.spring.io/plugins-release/', 'https://repo.spring.io/libs-milestone/', 'https://repo.spring.io/libs-release/', 'https://repo.jenkins-ci.org/releases', 'https://repo.jenkins-ci.org/incrementals/', 'https://repository.mulesoft.org/nexus/content/repositories/public/', 'https://repository.cloudera.com/artifactory/public', 'https://repository.cloudera.com/artifactory/cloudera-repos/', 'https://repo.hortonworks.com/content/repositories/releases/', 'https://packages.atlassian.com/content/repositories/atlassian-public/', 'https://jcenter.bintray.com/', 'https://repository.jboss.org/nexus/content/repositories/ea/', 'https://repository.jboss.org/nexus/content/repositories/releases/', 'https://maven.wso2.org/nexus/content/repositories/releases/', 'https://maven.wso2.org/nexus/content/repositories/public/', 'https://maven.wso2.org/nexus/content/repositories/', 
+'https://maven.xwiki.org/releases/', 'https://maven-eu.nuxeo.org/nexus/content/repositories/public-releases/', 'https://maven-eu.nuxeo.org/nexus/content/repositories/', 'https://dl.bintray.com/kotlin/kotlin-dev/', 'https://repo.clojars.org/', 'http://maven.geomajas.org/nexus/content/groups/public/', 'https://plugins.gradle.org/m2/', 'https://dl.bintray.com/spinnaker/spinnaker/', 'https://maven.ibiblio.org/maven2/', 'https://philanthropist.touk.pl/nexus/content/repositories/releases/', 'https://clojars.org/', 'http://maven.jahia.org/maven2/', 'https://repository.mulesoft.org/releases/', 'https://build.surfconext.nl/repository/public/releases/', 'https://build.openconext.org/repository/public/releases/']
+
+    for mvn_repo in maven_repos:
+
+        parentGI,parentAID, parentV = ''
+
+        for c in parent.childNodes:
+            if c.nodeName == "groupId":
+                parentGI = c.replace(".","/") #here because the GID is sub folders in the link
+            elif c.nodeName == "artifactId":
+                parentAID = c
+            elif c.nodeName == "version":
+                parentV = c
+
+        try:
+            response = requests.get(mvn_repo + parentGI + "/" + parentAID + "/" + parentV + "/" + parentAID + "-" + parentV + ".pom") #the links contains .pom
+        except requests.ConnectionError:
+            other_probs.write(url + ": connection error")
+            #return(-1)
+
+        if response.ok:
+            with open(buf, "w") as f:
+                f.write(response.text)
+                #1) get its dependecies here,
+                #2) get is properties here
+                #3.1) if it has a parent call again get_parent_pom_from_maven(buf, parent.parent);
+                #3.2) then merge dependecies and properties before to retun them 
+                return(0)
+        #else:
+            #return(-1)
+    return(-1)
+
 
 # Scans a pom for dependencies and modules
 def scan_pom(pom, n=0, props={}):
