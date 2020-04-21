@@ -252,7 +252,7 @@ def scan_module(url, pom_name, stack, base_url="", props={}):
     try:
         m_deps, m_mods = scan_pom(
             exec_space, "module_" + pom_name, props=props)
-   except:
+    except:
         exceptions.write(url + ": exception raised in scan_pom" + "\n")
         write_problem_pom("module_" + pom_name)
         return(None)
@@ -305,12 +305,12 @@ def scan_repo(url):
     props["project.artifactId"] = min_info[1]
     props["project.version"] = min_info[2]
 
-#    try:
-    r_deps, r_modules = scan_pom(exec_space, pom_name, False, props)
-  #  except:
-    #    exceptions.write(url + ": exception raised in scan_pom" + "\n")
-    #  write_problem_pom(pom_name)
-    # return(None)
+    try:
+        r_deps, r_modules = scan_pom(exec_space, pom_name, False, props)
+    except:
+        exceptions.write(url + ": exception raised in scan_pom" + "\n")
+        write_problem_pom(pom_name)
+        return(None)
 
     # If an error occured, skip this repo and write it to a list
     if r_deps == [-1]:
