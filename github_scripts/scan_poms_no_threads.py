@@ -53,8 +53,8 @@ def get_value(data, props):
 def get_min_info(path, pom):
     dom = minidom.parse(path + pom)
     temp = dom.childNodes
-    groupId, artifactId, version = "", "", ""
-
+    groupId, artifactId, version = None, None, None
+    parentGID, parentV = None, None
     for c in temp:
         if c.nodeName == "project":
             children = c.childNodes
@@ -62,33 +62,47 @@ def get_min_info(path, pom):
 
     for c in children:
         if c.nodeName == "parent":
-            for p_c in c.childNodes:
-                if p_c.nodeName == "groupId":
-                    groupId = c
-                elif p_c.nodeName == "artifactId":
-                    artifactId = c
-                elif p_c.nodeName == "version":
-                    version = c
+            #for p_c in c.childNodes:
+                #if p_c.nodeName == "groupId":
+                    #groupId = c
+                #elif p_c.nodeName == "artifactId":
+                    #artifactId = c
+                #elif p_c.nodeName == "version":
+                    #version = c
+            for n in c.childNodes: #I only store the parent groupId version in case it is not declared in the pom
+                if n.nodeName == "groupId":
+                    parentGID = n
+                elif n.nodeName == "version":
+                    parentV = n
 
-        if c.nodeName == "groupId":
+        elif c.nodeName == "groupId":
             groupId = c
         elif c.nodeName == "artifactId":
             artifactId = c
         elif c.nodeName == "version":
             version = c
 
-    min_info = [groupId.firstChild.data, artifactId.firstChild.data,
-                version.firstChild.data]
-    return(min_info)
+    #here i use the parent groupId and version if not declared in the pom
+    if (groupId is not None) and (version is not None):
+        min_info = [groupId.firstChild.data, artifactId.firstChild.data, version.firstChild.data]
+        return(min_info)
+    elif (groupId is not None) and (version is None):
+        min_info = [groupId.firstChild.data, artifactId.firstChild.data, parentV.firstChild.data]
+        return(min_info)
+    elif (groupId is None) and (version is not None):
+        min_info = [parentGID.firstChild.data, artifactId.firstChild.data, version.firstChild.data]
+        return(min_info)
+    elif (groupId is None) and (version is None):
+        min_info = [parentGID.firstChild.data, artifactId.firstChild.data, parentV.firstChild.data]
+        return(min_info)
 
 
 # Try to find parent pom in maven central and download its contents to buf
 # this should be called recursively to get dependecies and properties of all pom parents
 # takes the parent node,
-def get_parent_pom_from_maven(path, pom, parent, props):
+def get_parent_pom_from_maven(path, pom, parent, props, url):
 
-    maven_repos = ['https://repo1.maven.org/maven2/', 'https://repo.spring.io/plugins-release/', 'https://repo.spring.io/libs-milestone/', 'https://repo.spring.io/libs-release/', 'https://repo.jenkins-ci.org/releases', 'https://repo.jenkins-ci.org/incrementals/', 'https://repository.mulesoft.org/nexus/content/repositories/public/', 'https://repository.cloudera.com/artifactory/public', 'https://repository.cloudera.com/artifactory/cloudera-repos/', 'https://repo.hortonworks.com/content/repositories/releases/', 'https://packages.atlassian.com/content/repositories/atlassian-public/', 'https://jcenter.bintray.com/', 'https://repository.jboss.org/nexus/content/repositories/ea/', 'https://repository.jboss.org/nexus/content/repositories/releases/', 'https://maven.wso2.org/nexus/content/repositories/releases/', 'https://maven.wso2.org/nexus/content/repositories/public/', 'https://maven.wso2.org/nexus/content/repositories/',
-                   'https://maven.xwiki.org/releases/', 'https://maven-eu.nuxeo.org/nexus/content/repositories/public-releases/', 'https://maven-eu.nuxeo.org/nexus/content/repositories/', 'https://dl.bintray.com/kotlin/kotlin-dev/', 'https://repo.clojars.org/', 'http://maven.geomajas.org/nexus/content/groups/public/', 'https://plugins.gradle.org/m2/', 'https://dl.bintray.com/spinnaker/spinnaker/', 'https://maven.ibiblio.org/maven2/', 'https://philanthropist.touk.pl/nexus/content/repositories/releases/', 'https://clojars.org/', 'http://maven.jahia.org/maven2/', 'https://repository.mulesoft.org/releases/', 'https://build.surfconext.nl/repository/public/releases/', 'https://build.openconext.org/repository/public/releases/']
+    maven_repos = ['https://repo1.maven.org/maven2/', 'https://repo.spring.io/plugins-release/', 'https://repo.spring.io/libs-milestone/', 'https://repo.spring.io/libs-release/', 'https://repo.jenkins-ci.org/releases', 'https://repo.jenkins-ci.org/incrementals/', 'https://repository.mulesoft.org/nexus/content/repositories/public/', 'https://repository.cloudera.com/artifactory/public', 'https://repository.cloudera.com/artifactory/cloudera-repos/', 'https://repo.hortonworks.com/content/repositories/releases/', 'https://packages.atlassian.com/content/repositories/atlassian-public/', 'https://jcenter.bintray.com/', 'https://repository.jboss.org/nexus/content/repositories/ea/', 'https://repository.jboss.org/nexus/content/repositories/releases/', 'https://maven.wso2.org/nexus/content/repositories/releases/', 'https://maven.wso2.org/nexus/content/repositories/public/', 'https://maven.wso2.org/nexus/content/repositories/', 'https://maven.xwiki.org/releases/', 'https://maven-eu.nuxeo.org/nexus/content/repositories/public-releases/', 'https://maven-eu.nuxeo.org/nexus/content/repositories/', 'https://dl.bintray.com/kotlin/kotlin-dev/', 'https://repo.clojars.org/', 'http://maven.geomajas.org/nexus/content/groups/public/', 'https://plugins.gradle.org/m2/', 'https://dl.bintray.com/spinnaker/spinnaker/', 'https://maven.ibiblio.org/maven2/', 'https://philanthropist.touk.pl/nexus/content/repositories/releases/', 'https://clojars.org/', 'http://maven.jahia.org/maven2/', 'https://repository.mulesoft.org/releases/', 'https://build.surfconext.nl/repository/public/releases/', 'https://build.openconext.org/repository/public/releases/']
 
     for mvn_repo in maven_repos:
 
@@ -103,25 +117,28 @@ def get_parent_pom_from_maven(path, pom, parent, props):
             elif c.nodeName == "version":
                 parentV = c.firstChild.data
 
+        url_parent_pom = mvn_repo + parentGI + "/" + parentAID + "/" + parentV + "/" + parentAID + "-" + parentV + ".pom"
+
         try:
-            response = requests.get(mvn_repo + parentGI + "/" + parentAID + "/" + parentV +
-                                    "/" + parentAID + "-" + parentV + ".pom")  # the links contains .pom
+            response = requests.get(url_parent_pom)  # the links contains .pom
         except requests.ConnectionError:
-            other_probs.write(url + ": connection error")
+            other_probs.write(url + " : connection error \n")
             # return(-1)
 
         if response.ok:
+            print(url_parent_pom)
             with open(path + pom, "w") as f:
                 f.write(response.text)
-            parent_deps, parent_mods = scan_pom(
-                path, pom, False, props)
+                f.close()
+            parent_deps, parent_mods = scan_pom(path, pom, url, False, props)
             return(parent_deps, parent_mods)
 
+    parentpom.write(url + ": parent pom has parent" + "\n") #here it means that no parent is found
     return([], [])
 
 
 # Scans a pom for dependencies and modules
-def scan_pom(path, pom, in_module=True, props={}):
+def scan_pom(path, pom, url, in_module=True, props={}):
     deps = []
 
     dom = minidom.parse(path + pom)
@@ -139,8 +156,7 @@ def scan_pom(path, pom, in_module=True, props={}):
 
     if parent.length > 0:
         if not in_module:
-            p_deps, p_mods = get_parent_pom_from_maven(
-                path, "parent_" + pom, parent.item(0), props)
+            p_deps, p_mods = get_parent_pom_from_maven(path, "parent_" + pom, parent.item(0), props, url)
 
         for node in parent.item(0).childNodes:
             if node.nodeType == minidom.Node.ELEMENT_NODE:
@@ -161,7 +177,7 @@ def scan_pom(path, pom, in_module=True, props={}):
             # props["parent.artifactId"] != props["project.artifactId"] or
                 props["parent.version"] != props["project.version"]):
             p_deps, p_mods = get_parent_pom_from_maven(
-                path, "parent_" + pom, parent.item(0), props)
+                path, "parent_" + pom, parent.item(0), props, url)
 
     if tmp_properties.length > 0:
         for node in tmp_properties.item(0).childNodes:
@@ -222,12 +238,13 @@ def get_pom(url, buf):
     try:
         response = requests.get(url + "pom.xml")
     except requests.ConnectionError:
-        other_probs.write(url + ": connection error")
+        other_probs.write(url + " : connection error \n")
         return(-1)
 
     if response.ok:
         with open(buf, "w") as f:
             f.write(response.text)
+            f.close()
             return(0)
     else:
         return(-1)
@@ -243,15 +260,14 @@ def write_problem_pom(pom_name):
 
 
 # Gets the pom of a module and scans in for dependencies and submodules
-def scan_module(url, pom_name, stack, base_url="", props={}):
+def scan_module(url, pom_name, stack, props={}):
 
     #    print("In scan_module")
     if get_pom(url, exec_space + "module_" + pom_name) < 0:
         return()
 
     try:
-        m_deps, m_mods = scan_pom(
-            exec_space, "module_" + pom_name, props=props)
+        m_deps, m_mods = scan_pom(exec_space, "module_" + pom_name, url, True, props=props)
     except:
         exceptions.write(url + ": exception raised in scan_pom" + "\n")
         write_problem_pom("module_" + pom_name)
@@ -306,7 +322,7 @@ def scan_repo(url):
     props["project.version"] = min_info[2]
 
     try:
-        r_deps, r_modules = scan_pom(exec_space, pom_name, False, props)
+        r_deps, r_modules = scan_pom(exec_space, pom_name, url, False, props)
     except:
         exceptions.write(url + ": exception raised in scan_pom" + "\n")
         write_problem_pom(pom_name)
@@ -365,7 +381,7 @@ def main():
             seen.append(url)
             deps = scan_repo(url)
             if deps is None:
-                break
+                continue
             all_deps.append([urls[0], urls[2], url] + deps)
 
     write_to_csv(all_deps, to_handle)
