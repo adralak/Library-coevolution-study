@@ -6,7 +6,7 @@ from threading import Thread
 from time import sleep
 from sys import argv
 import os
-
+import copy
 
 # Get to_handle from user and log in
 if len(argv) < 2:
@@ -69,31 +69,34 @@ def get_min_info(path, pom):
                     #artifactId = c
                 #elif p_c.nodeName == "version":
                     #version = c
-            for n in c.childNodes: #I only store the parent groupId version in case it is not declared in the pom
+            for n in c.childNodes: #I only store the parent groupId and version in case they are not declared in the pom, the artefact is mandatory for children
                 if n.nodeName == "groupId":
-                    parentGID = n
+                    parentGID = n.firstChild.data.replace(" ", "")#here and below, it is because some times there is " ", eg, " v3.2" while in modules there might be "v3.2", so if we compare them (we do below for parents), we must not get it wrong  
                 elif n.nodeName == "version":
-                    parentV = n
+                    parentV = n.firstChild.data.replace(" ", "")
 
         elif c.nodeName == "groupId":
-            groupId = c
+            groupId = c.firstChild.data.replace(" ", "")
         elif c.nodeName == "artifactId":
-            artifactId = c
+            artifactId = c.firstChild.data.replace(" ", "")
         elif c.nodeName == "version":
-            version = c
+            version = c.firstChild.data.replace(" ", "")
+
+    #print("parent", parentGID, parentV, "\n")
+    #print("pom", groupId, artifactId, version, "\n")
 
     #here i use the parent groupId and version if not declared in the pom
     if (groupId is not None) and (version is not None):
-        min_info = [groupId.firstChild.data, artifactId.firstChild.data, version.firstChild.data]
+        min_info = [groupId, artifactId, version]
         return(min_info)
     elif (groupId is not None) and (version is None):
-        min_info = [groupId.firstChild.data, artifactId.firstChild.data, parentV.firstChild.data]
+        min_info = [groupId, artifactId, parentV]
         return(min_info)
     elif (groupId is None) and (version is not None):
-        min_info = [parentGID.firstChild.data, artifactId.firstChild.data, version.firstChild.data]
+        min_info = [parentGID, artifactId, version]
         return(min_info)
     elif (groupId is None) and (version is None):
-        min_info = [parentGID.firstChild.data, artifactId.firstChild.data, parentV.firstChild.data]
+        min_info = [parentGID, artifactId, parentV]
         return(min_info)
 
 
@@ -106,34 +109,34 @@ def get_parent_pom_from_maven(path, pom, parent, props, url):
 
     for mvn_repo in maven_repos:
 
-        parentGI, parentAID, parentV = '', '', ''
+        parentGID, parentAID, parentV = '', '', ''
 
         for c in parent.childNodes:
             if c.nodeName == "groupId":
                 # here because the GID is sub folders in the link
-                parentGI = c.firstChild.data.replace(".", "/")
+                parentGID = c.firstChild.data.replace(" ", "").replace(".", "/")
             elif c.nodeName == "artifactId":
-                parentAID = c.firstChild.data
+                parentAID = c.firstChild.data.replace(" ", "")
             elif c.nodeName == "version":
-                parentV = c.firstChild.data
+                parentV = c.firstChild.data.replace(" ", "")
 
-        url_parent_pom = mvn_repo + parentGI + "/" + parentAID + "/" + parentV + "/" + parentAID + "-" + parentV + ".pom"
+        url_parent_pom = mvn_repo + parentGID + "/" + parentAID + "/" + parentV + "/" + parentAID + "-" + parentV + ".pom"
 
         try:
             response = requests.get(url_parent_pom)  # the links contains .pom
         except requests.ConnectionError:
-            other_probs.write(url + " : connection error \n")
-            # return(-1)
+            #other_probs.write(url_parent_pom + " : url does not exist \n")
+            pass #this does nothing
 
         if response.ok:
-            print(url_parent_pom)
+            #print(url_parent_pom)
             with open(path + pom, "w") as f:
                 f.write(response.text)
                 f.close()
             parent_deps, parent_mods = scan_pom(path, pom, url, False, props)
             return(parent_deps, parent_mods)
 
-    parentpom.write(url + ": parent pom has parent" + "\n") #here it means that no parent is found
+    parentpom.write(url + "pom.xml : parent pom does not exist" + "\n") #here it means that no parent is found, better to ignore it and continue
     return([], [])
 
 
@@ -172,12 +175,23 @@ def scan_pom(path, pom, url, in_module=True, props={}):
                 props[first_key] = data
                 props[second_key] = data
 
-        if in_module and\
-           (props["parent.groupId"] != props["project.groupId"] or
-            # props["parent.artifactId"] != props["project.artifactId"] or
-                props["parent.version"] != props["project.version"]):
-            p_deps, p_mods = get_parent_pom_from_maven(
-                path, "parent_" + pom, parent.item(0), props, url)
+        parentGID, parentAID, parentV = '', '', ''
+
+        for c in parent.item(0).childNodes:
+            if c.nodeName == "groupId":
+                parentGID = c.firstChild.data.replace(" ", "")
+            elif c.nodeName == "artifactId":
+                parentAID = c.firstChild.data.replace(" ", "")
+            elif c.nodeName == "version":
+                parentV = c.firstChild.data.replace(" ", "")
+
+        #((props["parent.groupId"] != props["project.groupId"]) or (props["parent.artifactId"] != props["project.artifactId"]) or (props["parent.version"] != props["project.version"])):
+        if in_module and ((parentGID != props["project.groupId"]) or (parentAID != props["project.artifactId"]) or (parentV != props["project.version"])):
+            #print("left = ", props["project.groupId"], props["project.artifactId"], props["project.version"], "\n")
+            #print("right = ", parentGID, parentAID, parentV, "\n")
+            #print(url)
+            #exceptions.write(url + ": module and his parent is not the project root" + "\n")
+            p_deps, p_mods = get_parent_pom_from_maven(path, "parent_" + pom, parent.item(0), props, url)
 
     if tmp_properties.length > 0:
         for node in tmp_properties.item(0).childNodes:
@@ -194,11 +208,13 @@ def scan_pom(path, pom, url, in_module=True, props={}):
 
     deps += p_deps
 
-    if p_mods != [] and not in_module:
-        return([-3], [-3])
+    #if p_mods != [] and not in_module:
+        #return([-3], [-3])
 
     if dependencies.length == 0:
         return(deps, modules)
+
+    #todo deal with dependencyManagement and their deps at pom root, also deal with redundant deps
 
     for depend in dependencies:
         info = ["groupId", "artifactId", "version"]
@@ -212,22 +228,35 @@ def scan_pom(path, pom, url, in_module=True, props={}):
             if dep.nodeName == "groupId":
                 v = get_value(dep.firstChild.data, props)
                 if v == [-1]:
-                    return([-2], [dep.firstChild.data[2:-1]])
-                info[0] = v
+                    info[0] = dep.firstChild.data
+                    exceptions.write(url + ": missing key " + dep.firstChild.data + "\n")
+                    #return([-2], [dep.firstChild.data[2:-1]])
+                else:
+                    info[0] = v
 
             if dep.nodeName == "artifactId":
                 v = get_value(dep.firstChild.data, props)
                 if v == [-1]:
-                    return([-2], [dep.firstChild.data[2:-1]])
-                info[1] = v
+                    info[1] = dep.firstChild.data
+                    exceptions.write(url + ": missing key " + dep.firstChild.data + "\n")
+                    #return([-2], [dep.firstChild.data[2:-1]])
+                else:
+                    info[1] = v
 
             if dep.nodeName == "version":
                 v = get_value(dep.firstChild.data, props)
                 if v == [-1]:
-                    return([-2], [dep.firstChild.data[2:-1]])
-                info[2] = v
+                    info[2] = dep.firstChild.data
+                    exceptions.write(url + ": missing key " + dep.firstChild.data + "\n")
+                    #return([-2], [dep.firstChild.data[2:-1]])
+                else:
+                    info[2] = v
 
-        deps.append(info)
+        if info[2] == "version": #it means that the version was not specified, that case it must be in "dependencyManagement" tag, if not then we cannot find it, 
+            #deps.append(info)#or ignore it and pass
+            pass
+        else:
+            deps.append(info)
 
 #    print(deps)
     return(deps, modules)
@@ -238,13 +267,13 @@ def get_pom(url, buf):
     try:
         response = requests.get(url + "pom.xml")
     except requests.ConnectionError:
-        other_probs.write(url + " : connection error \n")
+        other_probs.write(url + "pom.xml : connection error \n")
         return(-1)
 
     if response.ok:
         with open(buf, "w") as f:
             f.write(response.text)
-            f.close()
+            f.close
             return(0)
     else:
         return(-1)
@@ -268,21 +297,30 @@ def scan_module(url, pom_name, stack, props={}):
 
     try:
         m_deps, m_mods = scan_pom(exec_space, "module_" + pom_name, url, True, props=props)
-    except:
-        exceptions.write(url + ": exception raised in scan_pom" + "\n")
+    except Exception as err:
+        exceptions.write(url + "pom.xml : exception raised in scan_pom" + " -- " + err + "\n")
         write_problem_pom("module_" + pom_name)
         return(None)
 
     if m_deps == [-1]:
-        exceptions.write(url + ": rewrite of property " + m_mods[0] + "\n")
+        exceptions.write(url + "pom.xml : rewrite of property " + m_mods[0] + "\n")
         return(None)
     elif m_deps == [-2]:
-        exceptions.write(url + ": missing key " + m_mods[0] + "\n")
+        exceptions.write(url + "pom.xml : missing key " + m_mods[0] + "\n")
         return(None)
 
     for mod in m_mods:
         if mod != -2:
-            stack.append(url + mod + "/")
+            min_info = get_min_info(exec_space, "module_" + pom_name)
+            #print("module min_info = ", min_info)
+            c_props = copy.deepcopy(props)
+            c_props["project.groupId"] = min_info[0]
+            c_props["project.artifactId"] = min_info[1]
+            c_props["project.version"] = min_info[2]
+
+            mm_deps = scan_module(url + mod + "/", "module_" + pom_name, stack, props=c_props)
+            m_deps += mm_deps
+            #stack.append(url + mod + "/")
 
     return(m_deps)
 
@@ -304,7 +342,7 @@ def red(s):
 def scan_repo(url):
     global deps
 
-    print("Inspecting", url)
+    #print("Inspecting", url)
 
     pom_name = "pom.xml"
     is_exception = False
@@ -316,29 +354,30 @@ def scan_repo(url):
         return(None)
 
     min_info = get_min_info(exec_space, pom_name)
-
+    #print("min_info = ", min_info)
+    
     props["project.groupId"] = min_info[0]
     props["project.artifactId"] = min_info[1]
     props["project.version"] = min_info[2]
 
     try:
         r_deps, r_modules = scan_pom(exec_space, pom_name, url, False, props)
-    except:
-        exceptions.write(url + ": exception raised in scan_pom" + "\n")
+    except Exception as err:
+        exceptions.write(url + "pom.xml : exception raised in scan_pom" + " -- " + err + "\n")
         write_problem_pom(pom_name)
         return(None)
 
     # If an error occured, skip this repo and write it to a list
     if r_deps == [-1]:
-        exceptions.write(url + ": rewrite of property" + r_modules[0] + "\n")
+        exceptions.write(url + "pom.xml : rewrite of property" + r_modules[0] + "\n")
         is_exception = True
         return(None)
     elif r_deps == [-2]:
-        exceptions.write(url + ": missing key" + r_modules[0] + "\n")
+        exceptions.write(url + "pom.xml : missing key" + r_modules[0] + "\n")
         is_exception = True
         return(None)
     elif r_deps == [-3]:
-        exceptions.write(url + ": parent pom has parent with modules!\n")
+        exceptions.write(url + "pom.xml : parent pom has parent with modules!\n")
         is_exception = True
         return(None)
 
@@ -352,13 +391,16 @@ def scan_repo(url):
 
         m_deps = scan_module(module, pom_name, m_q, props=props)
 
-        if m_deps is None:
-            is_exception = True
+        if m_deps is not None:
+            repo_deps += m_deps
+
     # Write the data to a csv
-    if not is_exception:
-        return(min_info + repo_deps)
-    else:
-        return(None)
+    return(min_info + repo_deps)
+    
+    #if not is_exception:
+        #return(min_info + repo_deps)
+    #else:
+        #return(None)
 
 
 def main():
@@ -369,7 +411,7 @@ def main():
         reader = csv.reader(f)
         for row in reader:
             if len(row) > 2:
-                repo_urls.append([row[0][24:], row[0], row[1]] + row[2:])
+                repo_urls.append([row[0][23:], row[0], row[1]] + row[2:])
 
     all_deps = []
     seen = []
