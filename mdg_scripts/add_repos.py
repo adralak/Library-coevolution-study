@@ -1,6 +1,7 @@
-from py2neo import Node, Relationship, Graph
+from py2neo import Node, Relationship, Graph, NodeMatcher
 import csv
 import os
+from sys import argv
 
 if len(argv) < 2:
     print("Not enough arguments!")
@@ -21,14 +22,26 @@ def convert_dep_to_list(dep):
 
 
 # Finds the node matching the groupID, artifactID and version of dep
-def find_dep_node(matcher, dep):
+def find_dep_node(MDG, matcher, dep):
     if len(dep) != 3:
         return(None)
 
     coords = dep[0] + ":" + dep[1] + ":" + dep[2]
     found_nodes = matcher.match("Artifact", coordinates=coords)
+    found_node = found_nodes.first()
 
-    return(found_nodes.first())
+    if found_node is None:
+        # Either we just return None or we can add the node,
+        # not sure what's best...
+        tx = MDG.begin()
+        dep_node = Node("Artifact", groupID=dep[0], artifact=dep[1],
+                        version=dep[2], coordinates=coords)
+        tx.create(dep_node)
+        tx.commit()
+
+        return(dep_node)
+
+    return(found_node)
 
 
 # Find a node with its coordinates
@@ -40,14 +53,16 @@ def get_node(matcher, coords):
 
 def main():
     # Don't forget to start the MDG up before using this script!
-    MDG = Graph()
+    MDG = Graph(auth=("username", "password"))
     tx = MDG.begin()
     deps = []
     matcher = NodeMatcher(MDG)
 
-    with open(data_dir + t_handle, 'r', newline='') as f:
+    # print("Starting")
+
+    with open(data_dir + to_handle, 'r', newline='') as f:
         reader = csv.reader(f)
-        prev_repo, prev_node = None, None
+        prev_repo, prev_node, prev_version = None, None, None
         for row in reader:
             # Get metadata
             repo, gid, aid, version = row[0], row[3], row[4], row[5]
@@ -60,28 +75,33 @@ def main():
                              from_github="True")
 
             # If it already exists, the only thing to do is update the prev_repo and prev_node
-            existing_node = get_node(matcher, repo_node[coordinates])
+            existing_node = get_node(matcher, repo_node["coordinates"])
             if existing_node is not None:
-                prev_repo, prev_node = repo, existing_node
+                prev_repo, prev_node, prev_version = repo, existing_node, version
                 continue
 
-            tx.create(repo_node)
+            if version != prev_version or repo != prev_repo:
+                tx.create(repo_node)
 
-            if repo == prev_repo:
-                r_next = Relationship(repo_node, "NEXT", prev_node)
-                tx.create(r_next)
+                if repo == prev_repo:
+                    r_next = Relationship(repo_node, "NEXT", prev_node)
+                    tx.create(r_next)
 
-            prev_repo, prev_node = repo, repo_node
+                prev_repo, prev_node, prev_version = repo, repo_node, version
 
             for d in row[6:]:
                 if len(d) > 2:
-                    deps.append((repo_node, convert_dep_to_list(d)))
+                    dep_list = convert_dep_to_list(d)
+                    if dep_list is not None:
+                        deps.append((repo_node, dep_list))
 
+  #  print("Done adding nodes and NEXT")
     tx.commit()
     tx = MDG.begin()
+    deps = []
 
     for (node, dep) in deps:
-        dep_node = find_dep_node(matcher, dep)
+        dep_node = find_dep_node(MDG, matcher, dep)
 
         if dep_node is None:
             continue
@@ -90,3 +110,7 @@ def main():
         tx.create(r_dep)
 
     tx.commit()
+#    print("All done")
+
+
+main()
