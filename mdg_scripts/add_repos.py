@@ -3,11 +3,13 @@ import csv
 import os
 from sys import argv
 
-if len(argv) < 2:
+if len(argv) < 4:
     print("Not enough arguments!")
     exit(1)
 
 to_handle = argv[1]
+username = argv[2]
+password = argv[3]
 
 data_dir = "data/"
 
@@ -53,7 +55,7 @@ def get_node(matcher, coords):
 
 def main():
     # Don't forget to start the MDG up before using this script!
-    MDG = Graph(auth=("username", "password"))
+    MDG = Graph(auth=(username, password))
     tx = MDG.begin()
     deps = []
     matcher = NodeMatcher(MDG)
