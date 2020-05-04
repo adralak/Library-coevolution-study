@@ -98,7 +98,6 @@ def main():
   #  print("Done adding nodes and NEXT")
     tx.commit()
     tx = MDG.begin()
-    deps = []
 
     for (node, dep) in deps:
         dep_node = find_dep_node(MDG, matcher, dep)
