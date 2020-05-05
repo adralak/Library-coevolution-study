@@ -5,6 +5,7 @@ from sys import argv
 
 if len(argv) < 4:
     print("Not enough arguments!")
+    print("Correct use: python3 csv username password\ncsv is a csv file inside data_dir\nusername is the username used to connect to the graph; if there is no such thing, write None\npassword is the password used to connect to the graph; if there is no such thing, write None")
     exit(1)
 
 to_handle = argv[1]
