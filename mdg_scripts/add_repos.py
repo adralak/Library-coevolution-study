@@ -55,7 +55,10 @@ def get_node(matcher, coords):
 
 def main():
     # Don't forget to start the MDG up before using this script!
-    MDG = Graph(auth=(username, password))
+    if username == "None":
+        MDG = Graph()
+    else:
+        MDG = Graph(auth=(username, password))
     tx = MDG.begin()
     deps = []
     matcher = NodeMatcher(MDG)
@@ -108,7 +111,7 @@ def main():
             continue
 
         r_dep = Relationship(node, "DEPENDS_ON", dep_node)
-        tx.create(r_dep)
+        tx.merge(r_dep)
 
     tx.commit()
 #    print("All done")
