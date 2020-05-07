@@ -1,0 +1,2 @@
+Put all the csv files in this file (probably make a script to write this file)
+The full paths are needed, not just the names
