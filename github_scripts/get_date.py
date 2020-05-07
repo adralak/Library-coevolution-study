@@ -8,10 +8,19 @@ import os
 
 # Get token from user and log in
 token = argv[1]
-to_handle = argv[2]
-pos = int(argv[3])
+me = int(argv[2])
+total = int(argv[3])
+pos = int(argv[4])
 gh = Github(token, per_page=1000)
-intervals = []
+to_handle = []
+
+with open("all_csvs.txt", 'r'):
+    i = 0
+    for line in f:
+        if i % total == me:
+            to_handle.append(line)
+
+        i += 1
 
 # Where to write to
 exec_space = "exec_space" + token + "/"
@@ -80,30 +89,34 @@ def write_to_csv(infos, csv_name):
 def main():
     global rate_limit
 
-    repo_dates = []
+    i = 0
 
-    with open(to_handle, 'r') as f:
-        reader = csv.reader(f)
+    for csv_to_handle in to_handle:
+        repo_dates = []
+        i += 1
 
-        for row in reader:
-            repo_name, h = extract_repo_and_hash(row[pos])
-            print(repo_name)
-            if repo_name is None:
-                continue
+        with open(csv_to_handle, 'r') as f:
+            reader = csv.reader(f)
 
-            if rate_limit < 4:
-                wait_till_reset()
+            for row in reader:
+                repo_name, h = extract_repo_and_hash(row[pos])
 
-            rate_limit -= 3
-            repo = gh.get_repo(repo_name)
-            commit = repo.get_commit(h)
+                if repo_name is None:
+                    continue
 
-            coordinates = row[3] + ":" + row[4] + ":" + row[5]
-            date = commit.commit.committer.date.isoformat()
+                if rate_limit < 4:
+                    wait_till_reset()
 
-            repo_dates.append([coordinates, date])
+                    rate_limit -= 3
+                    repo = gh.get_repo(repo_name)
+                    commit = repo.get_commit(h)
 
-    write_to_csv(repo_dates, "dates.csv")
+                    coordinates = row[3] + ":" + row[4] + ":" + row[5]
+                    date = commit.commit.committer.date.isoformat()
+
+                    repo_dates.append([coordinates, date])
+
+        write_to_csv(repo_dates, "dates" + str(i) + ".csv")
 
 
 main()
