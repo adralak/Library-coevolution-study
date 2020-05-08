@@ -83,7 +83,7 @@ def main():
             # If it already exists, the only thing to do is update the prev_repo and prev_node
             existing_node = get_node(matcher, repo_node["coordinates"])
             if existing_node is not None:
-                prev_repo, prev_node, prev_version = repo, existing_node, version
+                prev_repo, prev_node, prev_version = aid, existing_node, version
                 continue
 
             if version != prev_version or repo != prev_repo:
@@ -93,7 +93,7 @@ def main():
                     r_next = Relationship(repo_node, "NEXT", prev_node)
                     tx.create(r_next)
 
-                prev_repo, prev_node, prev_version = repo, repo_node, version
+                prev_repo, prev_node, prev_version = aid, repo_node, version
 
             for d in row[6:]:
                 if len(d) > 2:
