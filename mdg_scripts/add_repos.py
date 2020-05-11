@@ -1,25 +1,17 @@
 from py2neo import Node, Relationship, Graph, NodeMatcher, RelationshipMatcher
 import csv
 import os
-from sys import argv
-
-if len(argv) < 2:
-    print("Not enough arguments!")
-    print("Correct use: python3 csv \ncsv is a csv file inside data_dir")
-    exit(1)
-
-to_handle = argv[1]
 
 data_dir = "data/"
-exec_space = "exec_space" + to_handle + "/"
+log_dir = "logs/"
 
 try:
-    os.mkdir(exec_space)
+    os.mkdir(log_dir)
 except:
     ()
 
-exceptions = open(exec_space + "exceptions" + to_handle + ".txt", "w")
-
+exceptions = open(log_dir + "exceptions.txt", "w")
+errors = open(log_dir + "errors.txt", "w")
 
 """def is_mid_exclude(version, i):
     if i + 1 < len(version):
@@ -227,7 +219,7 @@ def get_hash(url):
     return("")
 
 
-def main():
+def main(to_handle):
     # Don't forget to start the MDG up before using this script!
     if username == "None":
         MDG = Graph()
@@ -296,4 +288,8 @@ def main():
 #    print("All done")
 
 
-main()
+for to_handle in os.listdir(data_dir):
+    try:
+        main(to_handle)
+    except:
+        errors.write(to_handle + ": error while handling this csv")
