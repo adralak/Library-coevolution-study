@@ -5,7 +5,7 @@ from sys import argv
 
 if len(argv) < 2:
     print("Not enough arguments!")
-    print("Correct use: python3 csv \ncsv is a csv file inside data_dir\nusername is the username used to connect to the graph; if there is no such thing, write None\npassword is the password used to connect to the graph; if there is no such thing, write None")
+    print("Correct use: python3 csv \ncsv is a csv file inside data_dir")
     exit(1)
 
 to_handle = argv[1]
@@ -210,6 +210,23 @@ def purge_deps(deps):
     return(purged_deps)
 
 
+def get_hash(url):
+    if len(url) < 34:
+        return("")
+
+    repo_and_hash = url[34:]
+    slash = 0
+
+    for i in range(len(repo_and_hash)):
+        if repo_and_hash[i] == '/':
+            slash += 1
+
+        if slash == 2:
+            return(repo_and_hash[i+1:-1])
+
+    return("")
+
+
 def main():
     # Don't forget to start the MDG up before using this script!
     if username == "None":
@@ -227,20 +244,17 @@ def main():
         prev_gid, prev_art, prev_node, prev_version = None, None, None, None
         for row in reader:
             # Get metadata
-            repo, gid, aid, version, packaging = row[0], row[3], row[4], row[5], row[6]
+            repo, gid, aid, version, packaging, sha = (row[0], row[3], row[4],
+                                                       row[5], row[6], get_hash(row[2]))
 
             # Missing: release date, packaging
             # Create & add node
             repo_node = Node("Artifact", stars=row[1], url=row[2], groupID=gid,
                              artifact=aid, version=version, packaging=packaging,
                              coordinates=gid+":"+aid+":"+version,
-                             from_github="True")
+                             commit_hash=sha, from_github="True")
 
-            # If it already exists, the only thing to do is update the prev_repo and prev_node
-            existing_node = get_node(matcher, repo_node["coordinates"])
-            if existing_node is not None:
-                prev_gid, prev_art, prev_node, prev_version = gid, aid, existing_node, version
-                continue
+            version += sha
 
             if version != prev_version or (aid != prev_art and gid != prev_gid):
                 tx.create(repo_node)
