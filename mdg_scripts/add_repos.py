@@ -13,14 +13,6 @@ except:
 exceptions = open(log_dir + "exceptions.txt", "w")
 errors = open(log_dir + "errors.txt", "w")
 
-"""def is_mid_exclude(version, i):
-    if i + 1 < len(version):
-        prev_c, next_c = version[i - 1], version[i + 1]
-
-        return(prev_c == ')' and next_c == '(')
-
-    return(False)"""
-
 
 def get_midpoint(interval):
     for i in range(len(interval)):
@@ -219,6 +211,20 @@ def get_hash(url):
     return("")
 
 
+def already_exists(matcher, node):
+    found_nodes = matcher.match("Artifact", coordinates=node["coordinates"])
+    first_node = found_nodes.first()
+
+    if first_node["from_github"] is None:
+        return(True)
+    else:
+        for found_n in found_nodes:
+            if found_n["commit_hash"] == node["commit_hash"]:
+                return(True)
+
+    return(False)
+
+
 def main(to_handle):
     # Don't forget to start the MDG up before using this script!
     if username == "None":
@@ -247,6 +253,10 @@ def main(to_handle):
                              commit_hash=sha, from_github="True")
 
             version += sha
+
+            if already_exists(matcher, repo_node):
+                prev_gid, prev_art, prev_node, prev_version = gid, aid, repo_node, version
+                continue
 
             if version != prev_version or (aid != prev_art and gid != prev_gid):
                 tx.create(repo_node)
