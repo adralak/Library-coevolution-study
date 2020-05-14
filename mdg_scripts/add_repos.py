@@ -274,7 +274,7 @@ def main(to_handle):
                     if dep_list is not None:
                         repo_deps.append(dep_list)
 
-            deps.append((repo_node, dep_list))
+            deps.append((repo_node, repo_deps))
 
   #  print("Done adding nodes and NEXT")
     tx.commit()
