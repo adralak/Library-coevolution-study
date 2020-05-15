@@ -1,9 +1,14 @@
 import csv
 import os
-
+from time import sleep
 
 csv_dir = "data/"
-log_dir = "logs/"
+output_dir = "output/"
+
+try:
+    os.mkdir(output_dir)
+except:
+    ()
 
 
 class Counter(dict):
@@ -21,7 +26,9 @@ def get_midpoint(interval):
 
 def get_effective_version(version):
     if version == "version":
-        return("any", False, False)
+        return("0.any", False, False)
+    elif version[0] == "$":
+        return("", False, False)
 
     numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 
@@ -100,7 +107,8 @@ def purge_deps(deps):
             i += 1
 
             # If the dep is malformed or the real_dep is a hard requirement, skip
-            if len(curr_dep) < 3 or real_hard_req:
+            if len(curr_dep) < 3 or real_hard_req or len(curr_dep[0]) <= 1 \
+               or len(curr_dep[1]) <= 1 or len(curr_dep[2]) <= 1:
                 continue
 
             # Otherwise, get the actual version of curr_dep
@@ -113,6 +121,12 @@ def purge_deps(deps):
                or (real_version == "any" and version != "any"):
                 real_dep, real_version, real_needs_match, real_hard_req = (
                     curr_dep, version, needs_match, hard_req)
+
+        for s in real_dep:
+            s = s.replace('\'', '')
+
+        if real_version == "":
+            continue
 
         # We don't match here, so if matching is needed, we
         # want to keep that info
@@ -134,7 +148,7 @@ def main():
     count_deps = Counter()
 
     for to_handle in os.listdir(csv_dir):
-        with open(to_handle, "r", newline='') as f:
+        with open(csv_dir + to_handle, "r", newline='') as f:
             reader = csv.reader(f)
 
             n_rows += reader.line_num
@@ -163,17 +177,21 @@ def main():
                             repo_deps.append(dep)
 
                 tmp_repo_deps = purge_deps(repo_deps)
-                repo_deps = [d[0] + ":" + d[1] + ":" + d[2][0]
+                repo_deps = [d[0].replace('\'', '') + ":" + d[1].replace('\'', '') + ":" +
+                             d[2][0].replace('\'', '')
                              for d in tmp_repo_deps]
                 n_deps += len(repo_deps)
 
                 for dep in repo_deps:
                     count_deps[dep] += 1
 
-    with open(log_dir + "results.txt", "w") as r:
+    with open(output_dir + "results.txt", "w") as r:
         r.write(str(n_repos) + ": number of repos\n" + str(n_same) +
                 ": number of tags with the same coordinates\n" +
                 str(n_rows) + ": number of tags\n" +
                 str(n_deps) + ": number of dependency relationships\n")
 
-        wite_dep_numbers(count_deps, r)
+        write_dep_numbers(count_deps, r)
+
+
+main()
