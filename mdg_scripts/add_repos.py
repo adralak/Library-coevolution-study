@@ -172,7 +172,8 @@ def purge_deps(deps):
             i += 1
 
             # If the dep is malformed or the real_dep is a hard requirement, skip
-            if len(curr_dep) < 3 or real_hard_req:
+            if len(curr_dep) < 3 or real_hard_req or len(curr_dep[0]) <= 1 \
+               or len(curr_dep[1]) <= 1 or len(curr_dep[2]) <= 1:
                 continue
 
             # Otherwise, get the actual version of curr_dep
@@ -186,9 +187,13 @@ def purge_deps(deps):
                 real_dep, real_version, real_needs_match, real_hard_req = (
                     curr_dep, version, needs_match, hard_req)
 
+        if real_version == "":
+            continue
+
         # We don't match here, so if matching is needed, we
         # want to keep that info
         real_dep[2] = real_version, real_needs_match
+        real_dep = [s.replace('\'', '') for s in real_dep]
         purged_deps.append(real_dep)
 
     return(purged_deps)
