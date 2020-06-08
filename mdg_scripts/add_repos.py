@@ -22,9 +22,13 @@ def get_midpoint(interval):
     return(-1)
 
 
-def get_effective_version(version):
+def get_effective_version(v):
+    version = v.replace('\'', '')
+
     if version == "version":
         return("any", False, False)
+    elif version[0] == "$":
+        return("", False, False)
 
     numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 
@@ -105,7 +109,7 @@ def find_dep_node(MDG, matcher, dep):
     if found_node is None:
         tx = MDG.begin()
         dep_node = Node("Artifact", groupID=dep[0], artifact=dep[1],
-                        version=dep[2], coordinates=coords)
+                        version=version, coordinates=coords)
         tx.create(dep_node)
         tx.commit()
 
@@ -192,8 +196,9 @@ def purge_deps(deps):
 
         # We don't match here, so if matching is needed, we
         # want to keep that info
-        real_dep[2] = real_version, real_needs_match
         real_dep = [s.replace('\'', '') for s in real_dep]
+        real_dep[2] = real_version.replace('\'', ''), real_needs_match
+
         purged_deps.append(real_dep)
 
     return(purged_deps)
@@ -220,22 +225,12 @@ def already_exists(matcher, node):
     found_nodes = matcher.match("Artifact", coordinates=node["coordinates"])
     first_node = found_nodes.first()
 
-    if first_node["from_github"] is None:
-        return(True)
-    else:
-        for found_n in found_nodes:
-            if found_n["commit_hash"] == node["commit_hash"]:
-                return(True)
-
-    return(False)
+    return(first_node is not None)
 
 
 def main(to_handle):
     # Don't forget to start the MDG up before using this script!
-    if username == "None":
-        MDG = Graph()
-    else:
-        MDG = Graph(auth=(username, password))
+    MDG = Graph()
     tx = MDG.begin()
     deps = []
     matcher = NodeMatcher(MDG)
@@ -246,6 +241,8 @@ def main(to_handle):
         reader = csv.reader(f)
         prev_gid, prev_art, prev_node, prev_version = None, None, None, None
         for row in reader:
+            if len(row) < 7:
+                continue
             # Get metadata
             repo, gid, aid, version, packaging, sha = (row[0], row[3], row[4],
                                                        row[5], row[6], get_hash(row[2]))
@@ -257,8 +254,6 @@ def main(to_handle):
                              coordinates=gid+":"+aid+":"+version,
                              commit_hash=sha, from_github="True")
 
-            version += sha
-
             if already_exists(matcher, repo_node):
                 prev_gid, prev_art, prev_node, prev_version = gid, aid, repo_node, version
                 continue
@@ -268,7 +263,7 @@ def main(to_handle):
 
                 if aid == prev_art and gid == prev_gid:
                     r_next = Relationship(repo_node, "NEXT", prev_node)
-                    tx.create(r_next)
+                    tx.merge(r_next, "Artifact", "coordinates")
 
                 prev_gid, prev_art, prev_node, prev_version = gid, aid, repo_node, version
 
@@ -293,11 +288,11 @@ def main(to_handle):
 
             if dep_node is None:
                 exceptions.write(node[coordinates] + ": could not create dependency with " +
-                                 dep[0] + ":" + dep[1] + ":" + dep[2][0] + "because " + reason)
+                                 dep[0] + ":" + dep[1] + ":" + dep[2][0] + "because " + reason + "\n")
                 continue
 
             r_dep = Relationship(node, "DEPENDS_ON", dep_node)
-            tx.merge(r_dep)
+            tx.merge(r_dep, "Artifact", "coordinates")
 
     tx.commit()
 #    print("All done")
@@ -307,4 +302,5 @@ for to_handle in os.listdir(data_dir):
     try:
         main(to_handle)
     except:
-        errors.write(to_handle + ": error while handling this csv")
+        s = str(to_handle) + ": error while handling this csv\n"
+        errors.write(s)
