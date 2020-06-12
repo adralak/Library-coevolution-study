@@ -1,8 +1,10 @@
 import csv
 import os
 from time import sleep
+from bs4 import BeautifulSoup
 
-csv_dir = "data/"
+csv_first_dir = "data_first/"
+csv_second_dir = "data_second/"
 output_dir = "output/"
 
 try:
@@ -136,28 +138,80 @@ def purge_deps(deps):
     return(purged_deps)
 
 
-def write_dep_numbers(count_deps, r):
-    for key in count_deps:
-        r.write(key + " is used " + str(count_deps[key]) + " times\n")
+def write_dep_numbers(count_deps):
+    with open(output_dir + "n_deps.csv", "w", newline='') as f:
+        writer = csv.writer(f)
+        for key in count_deps:
+            writer.writerow([key, str(count_deps[key])])
+
+
+# Downloads a pom and writes its contents to buf
+def get_pom(url, buf):
+    try:
+        response = requests.get(url + "pom.xml")
+    except requests.ConnectionError:
+        other_probs.write(url + "pom.xml : connection error \n")
+        return(-1)
+
+    if response.ok:
+        with open(buf, "w") as f:
+            f.write(response.text)
+            f.close()
+            return(0)
+    else:
+        return(-1)
+
+
+# Scans a pom for dependencies and modules
+def scan_pom(pom):
+    deps = []
+
+    with open(pom, 'r') as pomFile:
+        soup = BeautifulSoup(pomFile, 'lxml')
+    parent = soup.find_all('parent')
+    modules = soup.find_all('module')
+
+    return(parent != [], len(modules))
 
 
 def main():
-    n_repos, n_same, n_rows, n_deps = 0, 0, 0, 0
+    n_repos, n_same, n_rows, n_deps, n_has_mods, n_mods, n_has_parent = (
+        0, 0, 0, 0, 0, 0, 0)
     prev_repo, prev_gid, prev_aid, prev_v, prev_url = (
         None, None, None, None, None)
     count_deps = Counter()
+    pom_path = "pom.xml"
 
-    for to_handle in os.listdir(csv_dir):
-        with open(csv_dir + to_handle, "r", newline='') as f:
+    for to_handle in os.listdir(csv_first_dir):
+        with open(csv_first_dir + to_handle, "r", newline='') as f:
             reader = csv.reader(f)
 
-            n_rows += reader.line_num
+            for row in reader:
+                url = row[2]
+
+                if get_pom(url, pom_path) < 0:
+                    continue
+
+                has_parent, n_r_mods = scan_pom(pom_path)
+
+                if has_parent:
+                    n_has_parent += 1
+
+                if n_r_mods > 0:
+                    n_has_mods += 1
+                    n_mods += n_r_mods
+
+    for to_handle in os.listdir(csv_second_dir):
+        with open(csv_second_dir + to_handle, "r", newline='') as f:
+            reader = csv.reader(f)
 
             for row in reader:
                 repo, gid, aid, v, url = row[0], row[3], row[4], row[5], row[2]
 
                 if url == prev_url:
                     continue
+
+                n_rows += 1
 
                 if repo != prev_repo:
                     n_repos += 1
@@ -189,9 +243,12 @@ def main():
         r.write(str(n_repos) + ": number of repos\n" + str(n_same) +
                 ": number of tags with the same coordinates\n" +
                 str(n_rows) + ": number of tags\n" +
-                str(n_deps) + ": number of dependency relationships\n")
+                str(n_deps) + ": number of dependency relationships\n" +
+                str(n_has_mods) + ": number of repos with modules\n" +
+                str(n_mods) + ": number of depth 1 modules\n" +
+                str(n_has_parent) + ": number of repos with parent poms")
 
-        write_dep_numbers(count_deps, r)
+    write_dep_numbers(count_deps)
 
 
 main()
