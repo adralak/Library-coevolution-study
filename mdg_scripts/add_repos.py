@@ -85,7 +85,7 @@ def convert_dep_to_list(dep):
     split_dep = dep.split(",")
     if len(split_dep) != 3:
         return(None)
-    real_dep = [split_dep[0][3:-1], split_dep[1][2:-1], split_dep[2][2:-2]]
+    real_dep = [split_dep[0][2:-1], split_dep[1][2:-1], split_dep[2][2:-2]]
     return(real_dep)
 
 
@@ -255,18 +255,25 @@ def main(to_handle):
                              coordinates=gid+":"+aid+":"+version,
                              commit_hash=sha, from_github="True")
 
+            repo_deps = []
+            for d in row[7:]:
+                if len(d) > 2:
+                    dep_list = convert_dep_to_list(d)
+                    if dep_list is not None:
+                        repo_deps.append(dep_list)
             e_node = existing_node(matcher, repo_node)
 
             if e_node is not None:
                 if (aid == prev_art and gid == prev_gid
                         and version != prev_version):
-                    print("added next")
                     r_next = Relationship(repo_node, "NEXT", prev_node)
                     tx.merge(r_next, "Artifact", "coordinates")
 
                 prev_gid, prev_art, prev_node, prev_version = (
                     e_node["groupID"], e_node["artifact"], e_node,
                     e_node["version"])
+
+                deps.append((e_node, repo_deps))
                 continue
 
             if version != prev_version or (aid != prev_art and gid != prev_gid):
@@ -278,13 +285,6 @@ def main(to_handle):
 
                 prev_gid, prev_art, prev_node, prev_version = (
                     gid, aid, repo_node, version)
-
-            for d in row[7:]:
-                repo_deps = []
-                if len(d) > 2:
-                    dep_list = convert_dep_to_list(d)
-                    if dep_list is not None:
-                        repo_deps.append(dep_list)
 
             deps.append((repo_node, repo_deps))
 
