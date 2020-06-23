@@ -221,11 +221,11 @@ def get_hash(url):
     return("")
 
 
-def already_exists(matcher, node):
+def existing_node(matcher, node):
     found_nodes = matcher.match("Artifact", coordinates=node["coordinates"])
     first_node = found_nodes.first()
 
-    return(first_node is not None)
+    return(first_node)
 
 
 def main(to_handle):
@@ -245,7 +245,8 @@ def main(to_handle):
                 continue
             # Get metadata
             repo, gid, aid, version, packaging, sha = (row[0], row[3], row[4],
-                                                       row[5], row[6], get_hash(row[2]))
+                                                       row[5], row[6],
+                                                       get_hash(row[2]))
 
             # Missing: release date, packaging
             # Create & add node
@@ -254,18 +255,30 @@ def main(to_handle):
                              coordinates=gid+":"+aid+":"+version,
                              commit_hash=sha, from_github="True")
 
-            if already_exists(matcher, repo_node):
-                prev_gid, prev_art, prev_node, prev_version = gid, aid, repo_node, version
+            e_node = existing_node(matcher, repo_node)
+
+            if e_node is not None:
+                if (aid == prev_art and gid == prev_gid
+                        and version != prev_version):
+                    print("added next")
+                    r_next = Relationship(repo_node, "NEXT", prev_node)
+                    tx.merge(r_next, "Artifact", "coordinates")
+
+                prev_gid, prev_art, prev_node, prev_version = (
+                    e_node["groupID"], e_node["artifact"], e_node,
+                    e_node["version"])
                 continue
 
             if version != prev_version or (aid != prev_art and gid != prev_gid):
                 tx.create(repo_node)
 
                 if aid == prev_art and gid == prev_gid:
+                    print("added next")
                     r_next = Relationship(repo_node, "NEXT", prev_node)
                     tx.merge(r_next, "Artifact", "coordinates")
 
-                prev_gid, prev_art, prev_node, prev_version = gid, aid, repo_node, version
+                prev_gid, prev_art, prev_node, prev_version = (
+                    gid, aid, repo_node, version)
 
             for d in row[7:]:
                 repo_deps = []
