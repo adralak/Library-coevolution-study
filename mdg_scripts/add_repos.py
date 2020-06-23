@@ -85,7 +85,7 @@ def convert_dep_to_list(dep):
     split_dep = dep.split(",")
     if len(split_dep) != 3:
         return(None)
-    real_dep = [split_dep[0][2:-1], split_dep[1][1:-1], split_dep[2][1:-2]]
+    real_dep = [split_dep[0][3:-1], split_dep[1][2:-1], split_dep[2][2:-2]]
     return(real_dep)
 
 
@@ -273,7 +273,6 @@ def main(to_handle):
                 tx.create(repo_node)
 
                 if aid == prev_art and gid == prev_gid:
-                    print("added next")
                     r_next = Relationship(repo_node, "NEXT", prev_node)
                     tx.merge(r_next, "Artifact", "coordinates")
 
