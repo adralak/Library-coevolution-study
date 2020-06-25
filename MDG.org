@@ -1,3 +1,36 @@
-* Version intervals
-** build the repos to see which version maven picks ?
-** or create a dummy node pointing to each end ?
+* Which clients migrate?
+#+BEGIN_SRC cypher
+MATCH (c_nn:Artifact)-[:NEXT]->(c_n:Artifact)-[:NEXT*]->(c_m:Artifact)
+-[:DEPENDS_ON]->(l_q:Artifact)<-[:NEXT*]-(l_p:Artifact)
+WHERE (c_n)-[:DEPENDS_ON]->(l_p) AND NOT (c_nn)-[:DEPENDS_ON]->(l_p)
+RETURN c_n,c_m,l_p,l_q LIMIT 10
+#+END_SRC
+Change the return line to count the c_ns. This counts almost all of 
+the migrations.
+#+BEGIN_SRC cypher
+MATCH (c_n:Artifact)-[:NEXT*]->(c_m:Artifact)
+-[:DEPENDS_ON]->(l_q:Artifact)<-[:NEXT*]-(l_p:Artifact)
+WHERE (c_n)-[:DEPENDS_ON]->(l_p) AND NOT ()-[:NEXT]->(c_n)
+RETURN c_n,c_m,l_p,l_q LIMIT 10
+#+END_SRC
+Change the return line again. This counts the remaining ones. 
+** DONE Find a way to combine both queries
+   CLOSED: [2020-06-25 jeu. 13:56]
+Add UNION in between both queries.
+** DONE Count the number of different artifacts
+   CLOSED: [2020-06-25 jeu. 13:59]
+Actually, just run the second query.
+** TODO Maybe count the number of migrations for each client?
+Probably looks something like this:
+#+BEGIN_SRC cypher
+MATCH (c_f:Artifact)
+WHERE NOT ()-[:NEXT]->(c_f)
+AND EXISTS {
+MATCH (c_f)-[:NEXT*]->(c_nn:Artifact)-[:NEXT]->(c_n:Artifact)-[:NEXT*]->
+(c_m:Artifact)-[:DEPENDS_ON]->(l_q:Artifact)<-[:NEXT*]-(l_p:Artifact)
+WHERE (c_n)-[:DEPENDS_ON]->(l_p) AND NOT (c_nn)-[:DEPENDS_ON]->(l_p)
+}
+RETURN c_f,count(c_n) LIMIT 10
+#+END_SRC
+
+* 
