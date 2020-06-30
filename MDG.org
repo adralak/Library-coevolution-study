@@ -1,36 +1,129 @@
+* TODO Fix all the queries
+Currently, they're matching too much: add a dummy node before
+c_m that still depends on the old library version to fix it.
+This means adding an extra MATCH to the UNION as well, where
+that dummy node is not present.
 * Which clients migrate?
 #+BEGIN_SRC cypher
-MATCH (c_nn:Artifact)-[:NEXT]->(c_n:Artifact)-[:NEXT*]->(c_m:Artifact)
--[:DEPENDS_ON]->(l_q:Artifact)<-[:NEXT*]-(l_p:Artifact)
-WHERE (c_n)-[:DEPENDS_ON]->(l_p) AND NOT (c_nn)-[:DEPENDS_ON]->(l_p)
-RETURN c_n,c_m,l_p,l_q LIMIT 10
+    MATCH (c_nn:Artifact)-[:NEXT]->(c_n:Artifact)-[:NEXT*]->(c_mm:Artifact)
+	  -[:NEXT]->(c_m:Artifact)-[:DEPENDS_ON]->(l_q:Artifact)
+	  <-[:NEXT*]-(l_p:Artifact)
+    WHERE (c_n)-[:DEPENDS_ON]->(l_p)<-[:DEPENDS_ON]-(c_mm) 
+	  AND NOT (c_nn)-[:DEPENDS_ON]->(l_p)
+    RETURN c_n,c_m,l_p,l_q LIMIT 10
+	   UNION
+    MATCH (c_n:Artifact)-[:NEXT*]->(c_mm:Artifact)-[:NEXT]->(c_m:Artifact)
+	  -[:DEPENDS_ON]->(l_q:Artifact)<-[:NEXT*]-(l_p:Artifact)
+    WHERE (c_n)-[:DEPENDS_ON]->(l_p)<-[:DEPENDS_ON]-(c_mm) 
+  AND NOT ()-[:NEXT]->(c_n)
+    RETURN c_n,c_m,l_p,l_q LIMIT 10
+	   UNION
+    MATCH (c_nn:Artifact)-[:NEXT]->(c_n:Artifact)-[:NEXT]->
+	  (c_m:Artifact)-[:DEPENDS_ON]->(l_q:Artifact)
+	  <-[:NEXT*]-(l_p:Artifact)
+    WHERE (c_n)-[:DEPENDS_ON]->(l_p) AND NOT (c_nn)-[:DEPENDS_ON]->(l_p)
+    RETURN c_n,c_m,l_p,l_q LIMIT 10
+	   UNION
+    MATCH (c_n:Artifact)-[:NEXT]->(c_m:Artifact)
+	  -[:DEPENDS_ON]->(l_q:Artifact)<-[:NEXT*]-(l_p:Artifact)
+    WHERE (c_n)-[:DEPENDS_ON]->(l_p) AND NOT ()-[:NEXT]->(c_n)
+    RETURN c_n,c_m,l_p,l_q LIMIT 10
 #+END_SRC
-Change the return line to count the c_ns. This counts almost all of 
-the migrations.
-#+BEGIN_SRC cypher
-MATCH (c_n:Artifact)-[:NEXT*]->(c_m:Artifact)
--[:DEPENDS_ON]->(l_q:Artifact)<-[:NEXT*]-(l_p:Artifact)
-WHERE (c_n)-[:DEPENDS_ON]->(l_p) AND NOT ()-[:NEXT]->(c_n)
-RETURN c_n,c_m,l_p,l_q LIMIT 10
-#+END_SRC
-Change the return line again. This counts the remaining ones. 
-** DONE Find a way to combine both queries
-   CLOSED: [2020-06-25 jeu. 13:56]
-Add UNION in between both queries.
+Change the return lines to count the c_ns. 
 ** DONE Count the number of different artifacts
    CLOSED: [2020-06-25 jeu. 13:59]
-Actually, just run the second query.
-** TODO Maybe count the number of migrations for each client?
-Probably looks something like this:
+Run the second and fourth part of the union, so:
 #+BEGIN_SRC cypher
-MATCH (c_f:Artifact)
-WHERE NOT ()-[:NEXT]->(c_f)
-AND EXISTS {
-MATCH (c_f)-[:NEXT*]->(c_nn:Artifact)-[:NEXT]->(c_n:Artifact)-[:NEXT*]->
-(c_m:Artifact)-[:DEPENDS_ON]->(l_q:Artifact)<-[:NEXT*]-(l_p:Artifact)
-WHERE (c_n)-[:DEPENDS_ON]->(l_p) AND NOT (c_nn)-[:DEPENDS_ON]->(l_p)
-}
-RETURN c_f,count(c_n) LIMIT 10
+  MATCH (c_n:Artifact)-[:NEXT*]->(c_mm:Artifact)-[:NEXT]->(c_m:Artifact)
+	-[:DEPENDS_ON]->(l_q:Artifact)<-[:NEXT*]-(l_p:Artifact)
+  WHERE (c_n)-[:DEPENDS_ON]->(l_p)<-[:DEPENDS_ON]-(c_mm) 
+	AND NOT ()-[:NEXT]->(c_n)
+  RETURN c_n,c_m,l_p,l_q LIMIT 10
+	 UNION
+  MATCH (c_n:Artifact)-[:NEXT]->(c_m:Artifact)
+	-[:DEPENDS_ON]->(l_q:Artifact)<-[:NEXT*]-(l_p:Artifact)
+  WHERE (c_n)-[:DEPENDS_ON]->(l_p) AND NOT ()-[:NEXT]->(c_n)
+  RETURN c_n,c_m,l_p,l_q LIMIT 10
 #+END_SRC
-
-* 
+* Which clients migrate as soon as possible?
+#+BEGIN_SRC cypher
+  MATCH (c_nn:Artifact)-[:NEXT]->(c_n:Artifact)-[:NEXT*]->(c_mm:Artifact)
+	-[:NEXT]->(c_m:Artifact)-[:DEPENDS_ON]->(l_q:Artifact)
+	<-[:NEXT]-(l_p:Artifact)
+  WHERE (c_n)-[:DEPENDS_ON]->(l_p)<-[:DEPENDS_ON]-(c_mm) 
+	AND NOT (c_nn)-[:DEPENDS_ON]->(l_p)
+  RETURN c_n,c_m,l_p,l_q LIMIT 10
+	 UNION
+  MATCH (c_nn:Artifact)-[:NEXT]->(c_n:Artifact)-[:NEXT]->(c_m:Artifact)
+	-[:DEPENDS_ON]->(l_q:Artifact)<-[:NEXT]-(l_p:Artifact)
+  WHERE (c_n)-[:DEPENDS_ON]->(l_p) AND NOT (c_nn)-[:DEPENDS_ON]->(l_p)
+  RETURN c_n,c_m,l_p,l_q LIMIT 10
+	 UNION
+  MATCH (c_n:Artifact)-[:NEXT*]->(c_mm:Artifact)-[:NEXT]->(c_m:Artifact)
+	-[:DEPENDS_ON]->(l_q:Artifact)<-[:NEXT]-(l_p:Artifact)
+  WHERE (c_n)-[:DEPENDS_ON]->(l_p)<-[:DEPENDS_ON]-(c_mm) 
+	AND NOT ()-[:NEXT]->(c_n)
+  RETURN c_n,c_m,l_p,l_q LIMIT 10
+#+END_SRC
+Almost the same query as for the first RQ.
+Counting the number of version changes is similar to the first RQ.
+* How many version changes does a library undergo before its clients migrate?
+#+BEGIN_SRC cypher
+      MATCH path=(l_p:Artifact)-[:NEXT*]->(l_q:Artifact)
+	    <-[:DEPENDS_ON]-(c_m:Artifact)<-[:NEXT]-(c_mm:Artifact)
+	  <-[:NEXT*]-(c_n:Artifact)<-[:NEXT]-(c_nn:Artifact)
+      WHERE (c_n)-[:DEPENDS_ON]->(l_p)<-[:DEPENDS_ON]-(c_mm) 
+	    AND NOT (c_nn)-[:DEPENDS_ON]->(l_p)
+      RETURN c_n,c_m,l_p,l_q,length(path) LIMIT 10
+	     UNION
+      MATCH path=(l_p:Artifact)-[:NEXT*]->(l_q:Artifact)
+	    <-[:DEPENDS_ON]-(c_m:Artifact)<-[:NEXT]-(c_mm:Artifact)
+	  <-[:NEXT*]-(c_n:Artifact)
+      WHERE (c_n)-[:DEPENDS_ON]->(l_p)<-[:DEPENDS_ON]-(c_mm) 
+	    AND NOT ()-[:NEXT]->(c_n)
+      RETURN c_n,c_m,l_p,l_q,length(path) LIMIT 10
+	     UNION
+      MATCH path=(l_p:Artifact)-[:NEXT*]->(l_q:Artifact)
+	    <-[:DEPENDS_ON]-(c_m:Artifact)<-[:NEXT]-(c_n:Artifact)
+	    <-[:NEXT]-(c_nn:Artifact)
+      WHERE (c_n)-[:DEPENDS_ON]->(l_p) AND NOT (c_nn)-[:DEPENDS_ON]->(l_p)
+      RETURN c_n,c_m,l_p,l_q,length(path) LIMIT 10
+	     UNION
+      MATCH path=(l_p:Artifact)-[:NEXT*]->(l_q:Artifact)
+	    <-[:DEPENDS_ON]-(c_m:Artifact)<-[:NEXT]-(c_n:Artifact)
+      WHERE (c_n)-[:DEPENDS_ON]->(l_p) AND NOT ()-[:NEXT]->(c_n)
+      RETURN c_n,c_m,l_p,l_q,length(path) LIMIT 10
+#+END_SRC
+* How many version changes does a client undergo before migrating?
+#+BEGIN_SRC cypher
+  MATCH path=(c_nn:Artifact)-[:NEXT]->(c_n:Artifact)-[:NEXT*]->(c_mm:Artifact)
+	-[:NEXT]->(c_m:Artifact)-[:DEPENDS_ON]->(l_q:Artifact)
+	<-[:NEXT*]-(l_p:Artifact)
+  WHERE (c_n)-[:DEPENDS_ON]->(l_p)<-[:DEPENDS_ON]-(c_mm) 
+	AND NOT (c_nn)-[:DEPENDS_ON]->(l_p)
+  RETURN c_n,c_m,l_p,l_q,length(path)-2 LIMIT 10
+	 UNION
+  MATCH path=(c_n:Artifact)-[:NEXT*]->(c_mm:Artifact)-[:NEXT]->(c_m:Artifact)
+	-[:DEPENDS_ON]->(l_q:Artifact)<-[:NEXT*]-(l_p:Artifact)
+  WHERE (c_n)-[:DEPENDS_ON]->(l_p)<-[:DEPENDS_ON]-(c_mm) 
+	AND NOT ()-[:NEXT]->(c_n)
+  RETURN c_n,c_m,l_p,l_q,length(path)-1 LIMIT 10
+	 UNION
+  MATCH path=(c_nn:Artifact)-[:NEXT]->(c_n:Artifact)-[:NEXT]->
+	(c_m:Artifact)-[:DEPENDS_ON]->(l_q:Artifact)
+	<-[:NEXT*]-(l_p:Artifact)
+  WHERE (c_n)-[:DEPENDS_ON]->(l_p) AND NOT (c_nn)-[:DEPENDS_ON]->(l_p)
+  RETURN c_n,c_m,l_p,l_q,length(path)-2 LIMIT 10
+	 UNION
+  MATCH path=(c_n:Artifact)-[:NEXT]->(c_m:Artifact)
+	-[:DEPENDS_ON]->(l_q:Artifact)<-[:NEXT*]-(l_p:Artifact)
+  WHERE (c_n)-[:DEPENDS_ON]->(l_p) AND NOT ()-[:NEXT]->(c_n)
+  RETURN c_n,c_m,l_p,l_q,length(path)-1 LIMIT 10
+#+END_SRC
+* Are there some versions that are popular among clients?
+WIP
+* Jumble of questions popping up
+** Check groupID?
+I'm noticing some dependencies for artifacts closely related. As such,
+they naturally evolve hand in hand. It may be better to exclude them?
+Or at least, make note of them
