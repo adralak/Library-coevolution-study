@@ -114,7 +114,7 @@ def main():
                     coordinates = row[3] + ":" + row[4] + ":" + row[5]
                     date = commit.commit.committer.date.isoformat()
 
-                    repo_dates.append([coordinates, date])
+                    repo_dates.append([coordinates, h, date])
 
         write_to_csv(repo_dates, "dates" + str(i) + ".csv")
 
