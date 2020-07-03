@@ -40,7 +40,8 @@ def get_effective_version(v):
 
     v_list = list(version)
     # Transform the string for easy split
-    # This turns the string "[2,5],(6.0,7.0],[8.0,)" into "[2;5],(6.0;7.0],[8.0;)"
+    # This turns the string "[2,5],(6.0,7.0],[8.0,)" into
+    # "[2;5],(6.0;7.0],[8.0;)"
     for i in range(1, len(version)):
         if version[i] == ',' and version[i-1] not in closing_bracket:
             v_list[i] = ';'
@@ -117,7 +118,8 @@ def find_dep_node(MDG, matcher, dep):
         # and we can't really find the one we're looking for
         # so we simply add it to the exceptions
         if needs_match:
-            return(None, "finding the dependency requires a node match that is impossible!")
+            return(None, "finding the dependency requires a" +
+                   " node match that is impossible!")
         else:
             return(dep_node, "")
 
@@ -143,7 +145,8 @@ def find_dep_node(MDG, matcher, dep):
             found_r = found_rs.first()
 
             if found_r is None:
-                return(None, "finding the dependency requires a relationship match that is impossible!")
+                return(None, "finding the dependency requires"
+                       + "a relationship match that is impossible!")
 
             return(found_r.end_node, "")
 
@@ -222,7 +225,8 @@ def get_hash(url):
 
 
 def existing_node(matcher, node):
-    found_nodes = matcher.match("Artifact", coordinates=node["coordinates"])
+    found_nodes = matcher.match("Artifact",
+                                coordinates=node["coordinates"])
     first_node = found_nodes.first()
 
     return(first_node)
@@ -261,30 +265,62 @@ def main(to_handle):
                     dep_list = convert_dep_to_list(d)
                     if dep_list is not None:
                         repo_deps.append(dep_list)
-            e_node = existing_node(matcher, repo_node)
+
+            # This is to see if the node was in the MDG before we added data
+            try:
+                e_node = existing_node(matcher, repo_node)
+            except Exception as err:
+                errors.write("Error while checking if the node" + gid + ":" +
+                             aid + ":" + version + ":" + sha + " exists in " +
+                             to_handle + ": " + err + "\n")
+                continue
 
             if e_node is not None:
-                if (aid == prev_art and gid == prev_gid
-                        and version != prev_version):
-                    r_next = Relationship(repo_node, "NEXT", prev_node)
-                    tx.merge(r_next, "Artifact", "coordinates")
-
                 prev_gid, prev_art, prev_node, prev_version = (
                     e_node["groupID"], e_node["artifact"], e_node,
                     e_node["version"])
 
-                deps.append((e_node, repo_deps))
-                continue
-
-            if version != prev_version or (aid != prev_art and gid != prev_gid):
-                tx.create(repo_node)
-
-                if aid == prev_art and gid == prev_gid:
+                if (aid == prev_art and gid == prev_gid
+                        and version != prev_version):
                     r_next = Relationship(repo_node, "NEXT", prev_node)
-                    tx.merge(r_next, "Artifact", "coordinates")
+                    try:
+                        tx.merge(r_next, "Artifact", "coordinates")
+                    except Exception as err:
+                        errors.write("Error while merging NEXT between " +
+                                     repo_node["coordinates"] + " and " +
+                                     prev_node["coordinates"] + " in" +
+                                     to_handle + ": " + err + "\n")
+                        continue
 
-                prev_gid, prev_art, prev_node, prev_version = (
-                    gid, aid, repo_node, version)
+                    prev_gid, prev_art, prev_node, prev_version = (
+                        e_node["groupID"], e_node["artifact"], e_node,
+                        e_node["version"])
+
+                    deps.append((e_node, repo_deps))
+                    continue
+
+                if version != prev_version or (aid != prev_art
+                                               and gid != prev_gid):
+                    try:
+                        tx.create(repo_node)
+                    except Exception as err:
+                        errors.write("Error while creating node" +
+                                     repo_node["coordinates"] + " in " +
+                                     to_handle + ": " + err + "\n")
+                        continue
+
+                    if aid == prev_art and gid == prev_gid:
+                        r_next = Relationship(repo_node, "NEXT", prev_node)
+                        try:
+                            tx.merge(r_next, "Artifact", "coordinates")
+                        except Exception as err:
+                            errors.write("Error while merging NEXT between" +
+                                         repo_node["coordinates"] + " and " +
+                                         prev_node["coordinates"] + " in " +
+                                         to_handle + ": " + err + "\n")
+                            continue
+                        prev_gid, prev_art, prev_node, prev_version = (
+                            gid, aid, repo_node, version)
 
             deps.append((repo_node, repo_deps))
 
@@ -299,8 +335,10 @@ def main(to_handle):
             dep_node, reason = find_dep_node(MDG, matcher, dep)
 
             if dep_node is None:
-                exceptions.write(node[coordinates] + ": could not create dependency with " +
-                                 dep[0] + ":" + dep[1] + ":" + dep[2][0] + "because " + reason + "\n")
+                exceptions.write(node[coordinates] + ": could not"
+                                 + " create dependency with " +
+                                 dep[0] + ":" + dep[1] + ":" +
+                                 dep[2][0] + "because " + reason + "\n")
                 continue
 
             r_dep = Relationship(node, "DEPENDS_ON", dep_node)
@@ -311,8 +349,4 @@ def main(to_handle):
 
 
 for to_handle in os.listdir(data_dir):
-    try:
-        main(to_handle)
-    except:
-        s = str(to_handle) + ": error while handling this csv\n"
-        errors.write(s)
+    main(to_handle)
