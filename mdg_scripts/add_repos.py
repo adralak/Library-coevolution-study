@@ -89,25 +89,26 @@ def convert_dep_to_list(dep):
     real_dep = [split_dep[0][2:-1], split_dep[1][2:-1], split_dep[2][2:-2]]
     return(real_dep)
 
-
 # Finds the node matching the groupID, artifactID and version of dep
+
+
 def find_dep_node(MDG, matcher, dep):
     if len(dep) != 3:
         return(None, "the dependency is malformed!")
 
     # Remember, we fiddled with dep so dep[2] is not quite version
     version, needs_match = dep[2]
+    v = version
+
     # If it needs a match, there are two trailing characters at the end
     if needs_match:
-        coords = dep[0] + ":" + dep[1] + ":" + version[:-2]
-    else:
-        coords = dep[0] + ":" + dep[1] + ":" + version
+        v = version[:-2]
 
-    found_nodes = matcher.match("Artifact", coordinates=coords)
-    found_node = found_nodes.first()
+    found_nodes = matcher.match("Artifact", artifact=aid, groupID=gid,
+                                version=v)
 
     # If we can't find the node, we add it to the MDG
-    if found_node is None:
+    if len(found_nodes) == 0:
         tx = MDG.begin()
         dep_node = Node("Artifact", groupID=dep[0], artifact=dep[1],
                         version=version, coordinates=coords)
@@ -122,6 +123,10 @@ def find_dep_node(MDG, matcher, dep):
                    " node match that is impossible!")
         else:
             return(dep_node, "")
+    elif len(found_nodes) > 1:
+        return(None, "multiple nodes with the same Maven coordinates!")
+
+    found_node = found_nodes.first()
 
     # Otherwise, we found the node. If we need a match
     if needs_match:
@@ -299,15 +304,17 @@ def main(to_handle):
                     deps.append((e_node, repo_deps))
                     continue
 
-                if version != prev_version or (aid != prev_art
-                                               and gid != prev_gid):
-                    try:
-                        tx.create(repo_node)
-                    except Exception as err:
-                        errors.write("Error while creating node" +
-                                     repo_node["coordinates"] + " in " +
-                                     to_handle + ": " + err + "\n")
-                        continue
+            if version != prev_version or (aid != prev_art
+                                           and gid != prev_gid):
+                repo_node["coordinates"] += ":" + sha
+
+                try:
+                    tx.create(repo_node)
+                except Exception as err:
+                    errors.write("Error while creating node" +
+                                 repo_node["coordinates"] + " in " +
+                                 to_handle + ": " + err + "\n")
+                    continue
 
                     if aid == prev_art and gid == prev_gid:
                         r_next = Relationship(repo_node, "NEXT", prev_node)
