@@ -359,8 +359,7 @@ def main(to_handle):
                 continue
 
             r_dep = Relationship(node, "DEPENDS_ON", dep_node)
-            print(r_dep.start_node["coordinates"],
-                  r_dep.end_node["coordinates"])
+
             try:
                 tx.merge(r_dep, "Artifact", "coordinates")
             except Exception as err:
