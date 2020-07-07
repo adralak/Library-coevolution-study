@@ -104,14 +104,15 @@ def find_dep_node(MDG, matcher, dep):
     if needs_match:
         v = version[:-2]
 
-    found_nodes = matcher.match("Artifact", artifact=aid, groupID=gid,
+    found_nodes = matcher.match("Artifact", groupID=dep[0], artifact=dep[1],
                                 version=v)
 
     # If we can't find the node, we add it to the MDG
     if len(found_nodes) == 0:
         tx = MDG.begin()
         dep_node = Node("Artifact", groupID=dep[0], artifact=dep[1],
-                        version=version, coordinates=coords)
+                        version=version, coordinates=dep[0] + ":" +
+                        dep[1] + ":" + v)
         tx.create(dep_node)
         tx.commit()
 
@@ -234,6 +235,12 @@ def existing_node(matcher, node):
                                 coordinates=node["coordinates"])
     first_node = found_nodes.first()
 
+    if first_node is None:
+        found_nodes = matcher.match("Artifact",
+                                    coordinates=node["coordinates"] + ":" +
+                                    node["commit_hash"])
+        first_node = found_nodes.first()
+
     return(first_node)
 
 
@@ -243,6 +250,9 @@ def main(to_handle):
     tx = MDG.begin()
     deps = []
     matcher = NodeMatcher(MDG)
+
+    errors.write("In " + to_handle + ":\n")
+    exceptions.write("In " + to_handle + ":\n")
 
     # print("Starting")
 
@@ -263,6 +273,8 @@ def main(to_handle):
                              artifact=aid, version=version, packaging=packaging,
                              coordinates=gid+":"+aid+":"+version,
                              commit_hash=sha, from_github="True")
+            print(tx.finished(),
+                  repo_node["coordinates"], repo_node["commit_hash"])
 
             repo_deps = []
             for d in row[7:]:
@@ -275,9 +287,9 @@ def main(to_handle):
             try:
                 e_node = existing_node(matcher, repo_node)
             except Exception as err:
-                errors.write("Error while checking if the node" + gid + ":" +
+                errors.write("Error while checking if the node " + gid + ":" +
                              aid + ":" + version + ":" + sha + " exists in " +
-                             to_handle + ": " + err + "\n")
+                             to_handle + ": " + repr(err) + "\n")
                 continue
 
             if e_node is not None:
@@ -294,7 +306,7 @@ def main(to_handle):
                         errors.write("Error while merging NEXT between " +
                                      repo_node["coordinates"] + " and " +
                                      prev_node["coordinates"] + " in" +
-                                     to_handle + ": " + err + "\n")
+                                     to_handle + ": " + repr(err) + "\n")
                         continue
 
                     prev_gid, prev_art, prev_node, prev_version = (
@@ -311,9 +323,9 @@ def main(to_handle):
                 try:
                     tx.create(repo_node)
                 except Exception as err:
-                    errors.write("Error while creating node" +
+                    errors.write("Error while creating node " +
                                  repo_node["coordinates"] + " in " +
-                                 to_handle + ": " + err + "\n")
+                                 to_handle + ": " + repr(err) + "\n")
                     continue
 
                     if aid == prev_art and gid == prev_gid:
@@ -321,10 +333,10 @@ def main(to_handle):
                         try:
                             tx.merge(r_next, "Artifact", "coordinates")
                         except Exception as err:
-                            errors.write("Error while merging NEXT between" +
+                            errors.write("Error while merging NEXT between " +
                                          repo_node["coordinates"] + " and " +
                                          prev_node["coordinates"] + " in " +
-                                         to_handle + ": " + err + "\n")
+                                         to_handle + ": " + repr(err) + "\n")
                             continue
                         prev_gid, prev_art, prev_node, prev_version = (
                             gid, aid, repo_node, version)
@@ -357,3 +369,6 @@ def main(to_handle):
 
 for to_handle in os.listdir(data_dir):
     main(to_handle)
+
+errors.close()
+exceptions.close()
