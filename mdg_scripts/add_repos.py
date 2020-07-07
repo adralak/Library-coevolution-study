@@ -273,8 +273,6 @@ def main(to_handle):
                              artifact=aid, version=version, packaging=packaging,
                              coordinates=gid+":"+aid+":"+version,
                              commit_hash=sha, from_github="True")
-            print(tx.finished(),
-                  repo_node["coordinates"], repo_node["commit_hash"])
 
             repo_deps = []
             for d in row[7:]:
@@ -361,6 +359,8 @@ def main(to_handle):
                 continue
 
             r_dep = Relationship(node, "DEPENDS_ON", dep_node)
+            print(r_dep.start_node["coordinates"],
+                  r_dep.end_node["coordinates"])
             tx.merge(r_dep, "Artifact", "coordinates")
 
     tx.commit()
