@@ -361,7 +361,13 @@ def main(to_handle):
             r_dep = Relationship(node, "DEPENDS_ON", dep_node)
             print(r_dep.start_node["coordinates"],
                   r_dep.end_node["coordinates"])
-            tx.merge(r_dep, "Artifact", "coordinates")
+            try:
+                tx.merge(r_dep, "Artifact", "coordinates")
+            except Exception as err:
+                errors.write("Could not create dependency between "
+                             + r_dep.start_node["coordinates"]
+                             + " and " + r_dep.end_node["coordinates"]
+                             + "because " + repr(err) + "\n")
 
     tx.commit()
 #    print("All done")
