@@ -247,7 +247,6 @@ def existing_node(matcher, node):
 def main(to_handle):
     # Don't forget to start the MDG up before using this script!
     MDG = Graph()
-    tx = MDG.begin()
     deps = []
     matcher = NodeMatcher(MDG)
 
@@ -262,6 +261,7 @@ def main(to_handle):
         for row in reader:
             if len(row) < 7:
                 continue
+            tx = MDG.begin()
             # Get metadata
             repo, gid, aid, version, packaging, sha = (row[0], row[3], row[4],
                                                        row[5], row[6],
@@ -340,12 +340,12 @@ def main(to_handle):
                             gid, aid, repo_node, version)
 
             deps.append((repo_node, repo_deps))
+            tx.commit()
 
   #  print("Done adding nodes and NEXT")
-    tx.commit()
-    tx = MDG.begin()
 
     for (node, dep_list) in deps:
+        tx = MDG.begin()
         node_deps = purge_deps(dep_list)
 
         for dep in node_deps:
@@ -368,7 +368,9 @@ def main(to_handle):
                              + " and " + r_dep.end_node["coordinates"]
                              + "because " + repr(err) + "\n")
 
-    tx.commit()
+        tx.commit()
+
+
 #    print("All done")
 
 
