@@ -281,7 +281,7 @@ def main(to_handle):
                     if dep_list is not None:
                         repo_deps.append(dep_list)
 
-            # This is to see if the node was in the MDG before we added data
+            # This is to see if the node was in the MDG before we added
             try:
                 e_node = existing_node(matcher, repo_node)
             except Exception as err:
@@ -291,53 +291,35 @@ def main(to_handle):
                 continue
 
             if e_node is not None:
-                prev_gid, prev_art, prev_node, prev_version = (
-                    e_node["groupID"], e_node["artifact"], e_node,
-                    e_node["version"])
+                print(e_node["coordinates"])
 
-                if (aid == prev_art and gid == prev_gid
-                        and version != prev_version):
-                    r_next = Relationship(repo_node, "NEXT", prev_node)
-                    try:
-                        tx.merge(r_next, "Artifact", "coordinates")
-                    except Exception as err:
-                        errors.write("Error while merging NEXT between " +
-                                     repo_node["coordinates"] + " and " +
-                                     prev_node["coordinates"] + " in" +
-                                     to_handle + ": " + repr(err) + "\n")
-                        continue
-
-                    prev_gid, prev_art, prev_node, prev_version = (
-                        e_node["groupID"], e_node["artifact"], e_node,
-                        e_node["version"])
-
-                    deps.append((e_node, repo_deps))
-                    continue
-
-            if version != prev_version or (aid != prev_art
-                                           and gid != prev_gid):
+            if e_node is not None:
+                repo_node = e_node
+            else:
                 repo_node["coordinates"] += ":" + sha
 
-                try:
-                    tx.create(repo_node)
-                except Exception as err:
-                    errors.write("Error while creating node " +
-                                 repo_node["coordinates"] + " in " +
-                                 to_handle + ": " + repr(err) + "\n")
-                    continue
+                if version != prev_version or (aid != prev_art
+                                               and gid != prev_gid):
+                    try:
+                        tx.create(repo_node)
+                    except Exception as err:
+                        errors.write("Error while creating node " +
+                                     repo_node["coordinates"] + " in " +
+                                     to_handle + ": " + repr(err) + "\n")
 
-                    if aid == prev_art and gid == prev_gid:
-                        r_next = Relationship(repo_node, "NEXT", prev_node)
-                        try:
-                            tx.merge(r_next, "Artifact", "coordinates")
-                        except Exception as err:
-                            errors.write("Error while merging NEXT between " +
-                                         repo_node["coordinates"] + " and " +
-                                         prev_node["coordinates"] + " in " +
-                                         to_handle + ": " + repr(err) + "\n")
-                            continue
-                        prev_gid, prev_art, prev_node, prev_version = (
-                            gid, aid, repo_node, version)
+            if aid == prev_art and gid == prev_gid:
+                r_next = Relationship(repo_node, "NEXT", prev_node)
+                try:
+                    tx.merge(r_next, "Artifact", "coordinates")
+                except Exception as err:
+                    errors.write("Error while merging NEXT between " +
+                                 repo_node["coordinates"] + " and " +
+                                 prev_node["coordinates"] + " in " +
+                                 to_handle + ": " + repr(err) + "\n")
+
+            prev_gid, prev_art, prev_node, prev_version = (
+                repo_node["groupID"], repo_node["artifact"],
+                repo_node, repo_node["version"])
 
             deps.append((repo_node, repo_deps))
             tx.commit()
@@ -352,7 +334,7 @@ def main(to_handle):
             dep_node, reason = find_dep_node(MDG, matcher, dep)
 
             if dep_node is None:
-                exceptions.write(node[coordinates] + ": could not"
+                exceptions.write(node["coordinates"] + ": could not"
                                  + " create dependency with " +
                                  dep[0] + ":" + dep[1] + ":" +
                                  dep[2][0] + "because " + reason + "\n")
