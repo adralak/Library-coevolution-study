@@ -93,12 +93,15 @@ def main():
                     else:
                         n_same_coords += 1
 
+                prev_gid, prev_art, prev_version, prev_coords = (
+                    gid, aid, version, coords)
+
                 repo_deps = []
                 for d in row[7:]:
                     # There may be some empty spots, skip them
                     if len(d) > 2:
                         dep_coords = convert_dep_to_coords(d)
-                        if dep_list is not None:
+                        if dep_coords is not None:
                             dependencies.writerow([coords, dep_coords])
 
     log.write("Number of rows skipped due to same coords: " +
@@ -106,3 +109,7 @@ def main():
     f1.close()
     f2.close()
     f3.close()
+    log.close()
+
+
+main()
