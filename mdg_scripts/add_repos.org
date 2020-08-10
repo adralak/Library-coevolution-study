@@ -1,5 +1,6 @@
 * Add nodes
 #+BEGIN_SRC cypher
+USING PERIODIC COMMIT 500
 LOAD CSV WITH HEADERS 
 FROM "https://people.irisa.fr/Djamel-Eddine.Khelladi/artifacts.csv" as row
 MERGE (n:Artifact {coordinates:row.coordinates})
@@ -9,11 +10,13 @@ hash:row.commit_hash, from_github:row.from_github}
 #+END_SRC
 * Add NEXT
 #+BEGIN_SRC cypher
+USING PERIODIC COMMIT 500
 LOAD CSV WITH HEADERS FROM "https://people.irisa.fr/Djamel-Eddine.Khelladi/next.csv" as row
 MERGE (n:Artifact {coordinates:row.coords1})-[:NEXT]->(m:Artifact {coordinates:row.coords2})
 #+END_SRC
 * Add DEPENDS_ON
 #+BEGIN_SRC cypher
+USING PERIODIC COMMIT 500
 LOAD CSV WITH HEADERS FROM "https://people.irisa.fr/Djamel-Eddine.Khelladi/dependencies.csv" as row
 MERGE (n:Artifact {coordinates:row.coords1})-[:NEXT]->(m:Artifact {coordinates:row.coords2})
 #+END_SRC
