@@ -11,6 +11,11 @@ try:
 except:
     ()
 
+try:
+    os.mkdir(new_data_dir)
+except:
+    ()
+
 
 # The hash is in the url, so we need to extract it
 def get_hash(url):
@@ -45,7 +50,10 @@ def transform_version(row):
     # Split the version on the dots: '4.10' becomes ['4', '10']
     split_version = version.split('.')
     # Add lengths: ['4', '10'] becomes [(1, '4'), (2, '10')]
-    split_version_with_len = [(len(s), s) for s in split_version]
+    split_version_with_len = [[len(s), s] for s in split_version]
+
+    if "SNAPSHOT" in split_version_with_len[-1][1]:
+        split_version_with_len[-1][0] -= 8
 
     return(split_version_with_len)
 
@@ -56,7 +64,6 @@ def main():
                   open(new_data_dir + "deps.csv", 'w', newline=''))
     nodes, nexts, dependencies = csv.writer(f1), csv.writer(f2), csv.writer(f3)
     log = open(log_dir + "conversion_log.txt", 'w')
-    n_same_coords, n_rows = 0, 0
 
     nodes.writerow(["groupID", "artifact", "version", "coordinates",
                     "stars", "url", "commit_hash", "packaging", "from_github"])
@@ -66,32 +73,38 @@ def main():
     for to_handle in os.listdir(data_dir):
         with open(data_dir + to_handle, 'r', newline='') as f:
             reader = csv.reader(f)
-            sorted_by_gid = sorted(reader, key=operator.itemgetter(3))
+
+            sorted_by_vrs = sorted(reader, key=transform_version)
+            sorted_by_gid = sorted(sorted_by_vrs, key=operator.itemgetter(3))
             sorted_by_aid = sorted(sorted_by_gid, key=operator.itemgetter(4))
-            sorted_rows = sorted(sorted_by_aid, key=transform_version,
-                                 reverse=True)
+
+            sorted_rows = sorted_by_aid
 
             prev_gid, prev_art, prev_version, prev_coords = (
                 None, None, None, None)
+            n_same = 0
 
             for row in sorted_rows:
                 # If the row is too short for some reason, skip it
                 if len(row) < 7:
                     continue
 
-                n_rows += 1
-
                 gid, aid, version, coords = (row[3], row[4], row[5],
                                              row[3] + ":" + row[4] + ":" + row[5])
 
-                nodes.writerow([gid, aid, version, coords, row[1], row[2],
-                                get_hash(row[2]), row[6], "True"])
+                if prev_gid == gid and prev_art == aid and \
+                   prev_version == version:
+                    coords += "-GITHUB" + str(n_same)
+                    nodes.writerow([gid, aid, version + "-GITHUB" +
+                                    str(n_same), coords, row[1], row[2],
+                                    get_hash(row[2]), row[6], "True"])
+                    n_same += 1
+                else:
+                    n_same = 0
+                    nodes.writerow([gid, aid, version, coords, row[1], row[2],
+                                    get_hash(row[2]), row[6], "True"])
 
-                if prev_gid == gid and prev_art == aid:
-                    if prev_version != version:
-                        nexts.writerow([coords, prev_coords])
-                    else:
-                        n_same_coords += 1
+                nexts.writerow([prev_coords, coords])
 
                 prev_gid, prev_art, prev_version, prev_coords = (
                     gid, aid, version, coords)
@@ -104,8 +117,6 @@ def main():
                         if dep_coords is not None:
                             dependencies.writerow([coords, dep_coords])
 
-    log.write("Number of rows skipped due to same coords: " +
-              str(n_same_coords) + "/" + str(n_rows) + "\n")
     f1.close()
     f2.close()
     f3.close()
